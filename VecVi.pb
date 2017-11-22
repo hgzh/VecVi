@@ -1,22 +1,49 @@
 ﻿; ###########################################################
 ; ################ VECVI (VectorView) MODULE ################
 ; ###########################################################
-;
+
 ;   written by Andesdaf/hgzh, 2017
-;   
+
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
 ;   CanvasGadget, Window, Image object, .svg file (Linux),
 ;   .pdf file (not Windows) or send it directly to a printer.
+
 ; ###########################################################
 ;                          LICENSING
-;
-;   MIT License
+; Copyright (c) 2017 Andesdaf/hgzh
+
+; Permission is hereby granted, free of charge, to any person
+; obtaining a copy of this software and associated
+; documentation files (the "Software"), to deal in the
+; Software without restriction, including without limitation
+; the rights to use, copy, modify, merge, publish, distribute,
+; sublicense, and/or sell copies of the Software, and to
+; permit persons to whom the Software is furnished to do so,
+; subject to the following conditions:
+
+; The above copyright notice and this permission notice shall
+; be included in all copies or substantial portions of the
+; Software.
+
+; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+; KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+; WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+; PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+; OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+; OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+; OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+; SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ; ###########################################################
 ;                          CHANGELOG
 ;
 ;   v.1.00 (2017-11-17)
 ;    - first version
+;   v.1.01 (2017-11-22)
+;    - various bug fixes
+;    - added SetOutputScale() / GetOutputScale()
+;    - added GetPageWidth() / GetPageHeight()
 ; ###########################################################
 
 EnableExplicit
@@ -90,7 +117,17 @@ EndEnumeration
 ; public     :: possible page formats
 ; ----------------------------------------
 #FORMAT_INHERIT = ""
-#FORMAT_A4 = "210,297"
+#FORMAT_A0  = "841,1189"
+#FORMAT_A1  = "594,841"
+#FORMAT_A2  = "420,594"
+#FORMAT_A3  = "297,420"
+#FORMAT_A4  = "210,297"
+#FORMAT_A5  = "148,210"
+#FORMAT_A6  = "105,148"
+#FORMAT_A7  = "74,105"
+#FORMAT_A8  = "52,74"
+#FORMAT_A9  = "37,52"
+#FORMAT_A10 = "26,37"
 
 ;- >>> structures <<<
 
@@ -156,7 +193,7 @@ Structure VECVI_HEADER
   ; ----------------------------------------
   Margins.VECVI_MARGINS
   
-  *Block.VECVI_BLOCK
+  Block.VECVI_BLOCK
 EndStructure
 
 Structure VECVI_FOOTER
@@ -165,7 +202,7 @@ Structure VECVI_FOOTER
   ; ----------------------------------------
   Margins.VECVI_MARGINS
   
-  *Block.VECVI_BLOCK
+  Block.VECVI_BLOCK
 EndStructure
 
 Structure VECVI_PAGE
@@ -184,8 +221,8 @@ Structure VECVI_PAGE
   Margins.VECVI_MARGINS
   Pos.VECVI_POS
   
-  *Header.VECVI_HEADER
-  *Footer.VECVI_FOOTER  
+  Header.VECVI_HEADER
+  Footer.VECVI_FOOTER  
 EndStructure
 
 Structure VECVI
@@ -213,8 +250,8 @@ Structure VECVI
   Map msVal.s()
   Map mdVal.d()
   
-  *Header.VECVI_HEADER
-  *Footer.VECVI_FOOTER
+  Header.VECVI_HEADER
+  Footer.VECVI_FOOTER
 EndStructure
 
 ;- >>> public declaration <<<
@@ -239,12 +276,16 @@ EndStructure
   Declare   SetXPos(*psV.VECVI, pdX.d, piRelative = #False)
   Declare.d GetYPos(*psV.VECVI)
   Declare   SetYPos(*psV.VECVI, pdY.d, piRelative = #False)
+  Declare.d GetPageWidth(*psV.VECVI, piPage.i = 0)
+  Declare.d GetPageHeight(*psV.VECVI, piPage.i = 0)
+  Declare.d GetOutputScale(*psV.VECVI, piAxis.i)
+  Declare   SetOutputScale(*psV.VECVI, pdX.d = 1, pdY.d = 1)
   Declare   SetFont(*psV.VECVI, pzName.s, piStyle.i = 0, pdSize.d = 0)
   Declare.i GetRealPageCount(*psV.VECVI, piPage.i = 0)
   Declare   SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
-  Declare   TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = 0)
-  Declare   ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piFill.i = 0)
-  Declare   ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = 0)
+  Declare   TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = #False)
+  Declare   ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piFill.i = #False)
+  Declare   ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = #False)
   Declare   HorizontalLine(*psV.VECVI, pdW.d, piHAlign.i = #ALIGN_LEFT)
   Declare   VerticalLine(*psV.VECVI, pdH.d, piVAlign.i = #ALIGN_TOP)
   Declare   XYLine(*psV.VECVI, pdDeltaX.d, pdDeltaY.d)
@@ -324,12 +365,10 @@ Procedure _addPage(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = #
     ; //
     ; header, footer
     ; //
-    \Header = AllocateStructure(VECVI_HEADER)
-    \Footer = AllocateStructure(VECVI_FOOTER)
-    \Header\Block = AllocateStructure(VECVI_BLOCK)
-    \Footer\Block = AllocateStructure(VECVI_BLOCK)
-    CopyStructure(*psV\Header, \Header, VECVI_HEADER)
-    CopyStructure(*psV\Footer, \Footer, VECVI_FOOTER)
+    \Header\Margins = *psV\Header\Margins
+    \Footer\Margins = *psV\Footer\Margins
+    CopyList(*psV\Header\Block\Elements(), \Header\Block\Elements())
+    CopyList(*psV\Footer\Block\Elements(), \Footer\Block\Elements())
 
     ; //
     ; format
@@ -382,22 +421,22 @@ Procedure.i _defTarget(*psV.VECVI, piTarget.i = -1)
     ; //
     ; standard header block
     ; //
-    ProcedureReturn *psV\Header\Block
+    ProcedureReturn @*psV\Header\Block
   ElseIf *psV\iDefTarget = 2
     ; //
     ; standard footer block
     ; //
-    ProcedureReturn *psV\Footer\Block
+    ProcedureReturn @*psV\Footer\Block
   ElseIf *psV\iDefTarget = 11
     ; //
     ; page header block
     ; //
-    ProcedureReturn *psV\Pages()\Header\Block
+    ProcedureReturn @*psV\Pages()\Header\Block
   ElseIf *psV\iDefTarget = 21
     ; //
     ; page footer block
     ; //
-    ProcedureReturn *psV\Pages()\Footer\Block
+    ProcedureReturn @*psV\Pages()\Footer\Block
   EndIf
   
   ProcedureReturn 0
@@ -1268,7 +1307,7 @@ Procedure _processElements(*psV.VECVI, piTarget)
       ; if page breaks allowed within blocks, check the height of every element
       ; and do a page break, if necessary.
       ; //
-      If *Target\iPageBreak = #True And *psV\Pages()\Pos\dY + \mdVal("_BlockH") >= _calcPageHeight(*psV, #MARGIN_BOTTOM)
+      If *Target\iPageBreak = #True And *psV\Pages()\Pos\dY + \mdVal("_BlockH") > _calcPageHeight(*psV, #MARGIN_BOTTOM)
         _processEndPage(*psV)
         If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
           ; //
@@ -1394,6 +1433,13 @@ Procedure _processNewPage(*psV.VECVI)
   If (*psV\iOutput = #OUTPUT_PRINTER Or *psV\iOutput = #OUTPUT_PDF Or *psV\iOutput = #OUTPUT_SVG) And
      Not (*psV\Pages()\iNr = 1 And *psV\Pages()\iNrRealPages = 1)
     NewVectorPage()
+    
+    ; //
+    ; fill the page in the current sizes
+    ; //
+    AddPathBox(0, 0, *psV\Sizes\dWidth, *psV\Sizes\dHeight)
+    VectorSourceColor(RGBA(255, 255, 255, 255))
+    FillPath()
   EndIf
   
   ; //
@@ -1448,7 +1494,8 @@ Procedure _processBlocks(*psV.VECVI)
     ; if page breaks are forbidden within this block, check if the block size fits the
     ; left y space on the page, and create a new page, if it is necessary.
     ; //
-    If *psV\Pages()\Blocks()\iPageBreak = #False And *psV\Pages()\Pos\dY + _calcBlockHeight(@*psV\Pages()\Blocks()) >= _calcPageHeight(*psV)
+    If *psV\Pages()\Blocks()\iPageBreak = #False And *psV\Pages()\Pos\dY + _calcBlockHeight(@*psV\Pages()\Blocks()) > _calcPageHeight(*psV)
+      _processEndPage(*psV)
       If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
         ; //
         ; for single-page output channels, overwrite the former drawing if it's not the
@@ -1541,6 +1588,15 @@ Procedure _process(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piRealPage.i)
   ; start drawing to the specified output
   ; //
   If StartVectorDrawing(iOutput)
+    
+    ; //
+    ; scaling
+    ; //
+    ScaleCoordinates(*psV\mdVal("ScaleX"), *psV\mdVal("ScaleY"))
+    
+    ; //
+    ; iterate over each pagebreak
+    ; //
     ForEach *psV\Pages()
       If (*psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW) And
           *psV\iNrRealPages < *psV\iOnlyRealPage
@@ -1577,22 +1633,16 @@ Procedure _free(*psV.VECVI)
 ; ----------------------------------------
   
   ; //
-  ; page headers, footers
+  ; free fonts
   ; //
-  ForEach *psV\Pages()
-    FreeStructure(*psV\Pages()\Header\Block)
-    FreeStructure(*psV\Pages()\Header)
-    FreeStructure(*psV\Pages()\Footer\Block)
-    FreeStructure(*psV\Pages()\Footer)
+  ForEach *psV\Fonts()
+    FreeFont(*psV\Fonts()\iHandle)
   Next
   
   ; //
-  ; default header, footer
+  ; free structure
   ; //
-  FreeStructure(*psV\Header\Block)
-  FreeStructure(*psV\Header)
-  FreeStructure(*psV\Footer\Block)
-  FreeStructure(*psV\Footer)
+  FreeStructure(*psV)
   
 EndProcedure
 
@@ -1660,17 +1710,15 @@ Procedure.i Create(pzFormat.s, piOrientation.i)
   *psV\msVal("NbTotal")   = "{NbTotal}"
   
   ; //
+  ; set default scale factor
+  ; //
+  *psV\mdVal("ScaleX") = 1
+  *psV\mdVal("ScaleY") = 1
+  
+  ; //
   ; load default font
   ; //
   SetFont(*psV, "Arial", 0, 5)
-  
-  ; //
-  ; allocate header and footer objects and blocks
-  ; //
-  *psV\Header = AllocateStructure(VECVI_HEADER)
-  *psV\Header\Block = AllocateStructure(VECVI_BLOCK)
-  *psV\Footer = AllocateStructure(VECVI_FOOTER)
-  *psV\Footer\Block = AllocateStructure(VECVI_BLOCK)
   
   ProcedureReturn *psV
   
@@ -1736,7 +1784,13 @@ Procedure BeginHeader(*psV.VECVI)
 ; ----------------------------------------
   
   *psV\iDefTarget = 1
+  
+  ; //
+  ; reset the header block
+  ; //
   ClearList(*psV\Header\Block\Elements())
+  *psV\Header\Block\Pos\dX = 0
+  *psV\Header\Block\Pos\dY = 0
   
 EndProcedure
 
@@ -1750,7 +1804,13 @@ Procedure BeginFooter(*psV.VECVI)
 ; ----------------------------------------
   
   *psV\iDefTarget = 2
+
+  ; //
+  ; reset the footer block
+  ; //
   ClearList(*psV\Footer\Block\Elements())
+  *psV\Footer\Block\Pos\dX = 0
+  *psV\Footer\Block\Pos\dY = 0
 
 EndProcedure
 
@@ -2043,6 +2103,90 @@ Procedure SetYPos(*psV.VECVI, pdY.d, piRelative = #False)
     
 EndProcedure
 
+Procedure.d GetPageWidth(*psV.VECVI, piPage.i = 0)
+; ----------------------------------------
+; public     :: gets the net width of the specified page
+; param      :: *psV   - VecVi structure
+;               piPage - (S: 0) page to get the width for
+;               if 0, return the width for the current page
+;               otherwise get the width of the specified page
+; returns    :: (d) page width
+; remarks    :: 
+; ----------------------------------------
+
+  If piPage = 0
+    ProcedureReturn _calcPageWidth(*psV)
+  Else
+    PushListPosition(*psV\Pages())
+    ForEach *psV\Pages()
+      If *psV\Pages()\iNr = piPage
+        ProcedureReturn _calcPageWidth(*psV)
+      EndIf
+    Next
+    PopListPosition(*psV\Pages())
+  EndIf
+  
+EndProcedure
+
+Procedure.d GetPageHeight(*psV.VECVI, piPage.i = 0)
+; ----------------------------------------
+; public     :: gets the net height of the specified page
+; param      :: *psV   - VecVi structure
+;               piPage - (S: 0) page to get the height for
+;               if 0, return the height for the current page
+;               otherwise get the height of the specified page
+; returns    :: (d) page height
+; remarks    :: 
+; ----------------------------------------
+
+  If piPage = 0
+    ProcedureReturn _calcPageHeight(*psV)
+  Else
+    PushListPosition(*psV\Pages())
+    ForEach *psV\Pages()
+      If *psV\Pages()\iNr = piPage
+        ProcedureReturn _calcPageHeight(*psV)
+      EndIf
+    Next
+    PopListPosition(*psV\Pages())
+  EndIf
+  
+EndProcedure
+
+Procedure.d GetOutputScale(*psV.VECVI, piAxis.i)
+; ----------------------------------------
+; public     :: gets the scale factor to use for the outputs
+; param      :: *psV   - VecVi structure
+;               piAxis - direction to get the scale for
+;                        0: x axis
+;                        1: y axis
+; returns    :: (d) scale factor
+; remarks    :: 
+; ----------------------------------------
+
+  If piAxis = 0
+    ProcedureReturn *psV\mdVal("ScaleX")
+  ElseIf piAxis = 1
+    ProcedureReturn *psV\mdVal("ScaleY")
+  EndIf
+  
+EndProcedure
+
+Procedure SetOutputScale(*psV.VECVI, pdX.d = 1, pdY.d = 1)
+; ----------------------------------------
+; public     :: sets the scale factor to use for the following outputs
+; param      :: *psV - VecVi structure
+;               pdX  - (S: 1) scale to set for the x direction, see ScaleCoordinates()
+;               pdY  - (S: 1) scale to set for the y direction, see ScaleCoordinates()
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+
+  *psV\mdVal("ScaleX") = pdX
+  *psV\mdVal("ScaleY") = pdY
+  
+EndProcedure
+
 Procedure SetFont(*psV.VECVI, pzName.s, piStyle.i = 0, pdSize.d = 0)
 ; ----------------------------------------
 ; public     :: sets the currently used font for text elements.
@@ -2119,7 +2263,7 @@ EndProcedure
 
 ;- >>> graphical elements <<<
 
-Procedure TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = 0)
+Procedure TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = #False)
 ; ----------------------------------------
 ; public     :: creates a new text cell on the current block.
 ; param      :: *psV     - VecVi structure
@@ -2189,7 +2333,7 @@ Procedure TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBor
     
 EndProcedure
 
-Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piFill.i = 0)
+Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piFill.i = #False)
 ; ----------------------------------------
 ; public     :: creates a new paragraph cell on the current block.
 ; param      :: *psV     - VecVi structure
@@ -2272,7 +2416,7 @@ Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, 
     
 EndProcedure
 
-Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = 0)
+Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #LN_RIGHT, piBorder.i = #BORDER_NONE, piHAlign.i = #ALIGN_LEFT, piVAlign.i = #ALIGN_CENTER, piFill.i = #False)
 ; ----------------------------------------
 ; public     :: creates a new text cell on the current block.
 ; param      :: *psV     - VecVi structure
