@@ -1624,28 +1624,6 @@ Procedure _process(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piRealPage.i)
   
 EndProcedure
 
-Procedure _free(*psV.VECVI)
-; ----------------------------------------
-; internal   :: frees all structured memory allocated by VecVi::Create() or VecVi::_addPage().
-; param      :: *psV - VecVi structure
-; returns    :: (nothing)
-; remarks    :: 
-; ----------------------------------------
-  
-  ; //
-  ; free fonts
-  ; //
-  ForEach *psV\Fonts()
-    FreeFont(*psV\Fonts()\iHandle)
-  Next
-  
-  ; //
-  ; free structure
-  ; //
-  FreeStructure(*psV)
-  
-EndProcedure
-
 ;- >>> basic functions <<<
 
 Procedure.i Create(pzFormat.s, piOrientation.i)
@@ -1729,10 +1707,20 @@ Procedure Free(*psV.VECVI)
 ; public     :: frees all VecVi data.
 ; param      :: *psV - VecVi structure
 ; returns    :: (nothing)
-; remarks    :: just calls VecVi::_free()
+; remarks    :: 
 ; ----------------------------------------
 
-  _free(*psV)
+  ; //
+  ; free fonts
+  ; //
+  ForEach *psV\Fonts()
+    FreeFont(*psV\Fonts()\iHandle)
+  Next
+  
+  ; //
+  ; free structure
+  ; //
+  FreeStructure(*psV)
   
 EndProcedure
 
@@ -2400,6 +2388,7 @@ Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #LN_RIGHT, 
       VectorFont(FontID(\miVal("Font")), \mdVal("FontSize"))
       pdH = VectorParagraphHeight(\msVal("TextRaw"), pdW, *psV\Pages()\Sizes\dHeight) + *psV\CellMargins\dBottom
       StopVectorDrawing()
+      FreeImage(iImage)
     EndIf
     
     \mdVal("_BlockY") = *Target\Pos\dY
