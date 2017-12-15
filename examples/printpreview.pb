@@ -16,32 +16,35 @@ Procedure createVecVi()
   ; define a page header
   ; //
   VecVi::BeginHeader(*VecVi)
-  Vecvi::SetMargin(*VecVi, Vecvi::#MARGIN_BOTTOM, 3, VecVi::#AREA_HEADER, #True)
-  VecVi::TextCell(*VecVi, 0, 5, "VecVi Test", VecVi::#LN_RIGHT, VecVi::#BORDER_BOTTOM)
+  Vecvi::SetMargin(*VecVi, Vecvi::#BOTTOM, 3, VecVi::#AREA_HEADER, #True)
+  VecVi::SetLineStyle(*VecVi, VecVi::#LINESTYLE_DASH | VecVi::#LINESTYLE_SQUAREEND, 5)
+  VecVi::TextCell(*VecVi, 0, 5, "VecVi Test", VecVi::#RIGHT, VecVi::#BOTTOM)
   VecVi::SetFont(*VecVi, "Arial", #PB_Font_Italic, 3)
-  VecVi::TextCell(*VecVi, 0, 5, "Date: " + FormatDate("%yyyy-%mm-%dd", Date()), VecVi::#LN_DOWN, VecVi::#BORDER_BOTTOM, VecVi::#ALIGN_RIGHT, VecVi::#ALIGN_BOTTOM)
+  VecVi::TextCell(*VecVi, 0, 5, "Date: " + FormatDate("%yyyy-%mm-%dd", Date()), VecVi::#BOTTOM, VecVi::#BOTTOM, VecVi::#RIGHT, VecVi::#BOTTOM)
+  VecVi::SetLineStyle(*VecVi, VecVi::#LINESTYLE_STROKE)
   
   ; //
   ; define a page footer
   ; //
-  Vecvi::SetMargin(*VecVi, Vecvi::#MARGIN_TOP, 3, VecVi::#AREA_FOOTER, #True)
+  Vecvi::SetMargin(*VecVi, Vecvi::#TOP, 3, VecVi::#AREA_FOOTER, #True)
   VecVi::BeginFooter(*VecVi)
-  VecVi::HorizontalLine(*VecVi, 100, Vecvi::#ALIGN_CENTER)
+  VecVi::HorizontalLine(*VecVi, 100, Vecvi::#CENTER)
   VecVi::Ln(*VecVi, 5)
-  Vecvi::TextCell(*VecVi, 0, 5, "Page {Nb} of {NbTotal}", VecVi::#LN_DOWN, VecVi::#BORDER_NONE, VecVi::#ALIGN_CENTER)
+  Vecvi::TextCell(*VecVi, 0, 5, "Page {Nb} of {NbTotal}", VecVi::#BOTTOM, #False, VecVi::#CENTER)
 
   ; //
   ; create the first page with the first block
   ; //
   VecVi::BeginPage(*VecVi)
   VecVi::BeginBlock(*VecVi)
+    
   VecVi::SetFont(*VecVi, "Arial", 0, 4)
   zText = "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore"
   zText + " magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren,"
   zText + " no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam"
   zText + " nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo"
   zText + " duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet."
-  VecVi::ParagraphCell(*VecVi, 0, 0, zText, VecVi::#LN_DOWN)
+  VecVi::ParagraphCell(*VecVi, 0, 0, zText, VecVi::#BOTTOM)
   
   VecVi::Ln(*VecVi, 5)
   VecVi::SetLineSize(*VecVi, 0.5)
@@ -51,19 +54,19 @@ Procedure createVecVi()
   Vecvi::SetFont(*VecVi, "Arial", #PB_Font_Bold, 4)
   VecVi::SetLineSize(*VecVi, 0.2)
   VecVi::SetFillColor(*VecVi, RGBA(200, 200, 200, 255))
-  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.05, 5, "#", VecVi::#LN_RIGHT, VecVi::#BORDER_ALL, VecVi::#ALIGN_LEFT, VecVi::#ALIGN_CENTER, #True)
-  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Name", VecVi::#LN_RIGHT, VecVi::#BORDER_ALL, VecVi::#ALIGN_LEFT, VecVi::#ALIGN_CENTER, #True)
-  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Address", VecVi::#LN_RIGHT, VecVi::#BORDER_ALL, VecVi::#ALIGN_LEFT, VecVi::#ALIGN_CENTER, #True)
-  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.15, 5, "Telephone", VecVi::#LN_RIGHT, VecVi::#BORDER_ALL, VecVi::#ALIGN_LEFT, VecVi::#ALIGN_CENTER, #True)
-  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.20, 5, "E-Mail", VecVi::#LN_NEWLINE, VecVi::#BORDER_ALL, VecVi::#ALIGN_LEFT, VecVi::#ALIGN_CENTER, #True)
+  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.05, 5, "#", VecVi::#RIGHT, VecVi::#ALL, VecVi::#LEFT, VecVi::#CENTER, #True)
+  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Name", VecVi::#RIGHT, VecVi::#ALL, VecVi::#LEFT, VecVi::#CENTER, #True)
+  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Address", VecVi::#RIGHT, VecVi::#ALL, VecVi::#LEFT, VecVi::#CENTER, #True)
+  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.15, 5, "Telephone", VecVi::#RIGHT, VecVi::#ALL, VecVi::#LEFT, VecVi::#CENTER, #True)
+  VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.20, 5, "E-Mail", VecVi::#NEWLINE, VecVi::#ALL, VecVi::#LEFT, VecVi::#CENTER, #True)
 
   Vecvi::SetFont(*VecVi, "Arial", 0, 4)  
   For i = 0 To 10
-    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.05, 5, Str(i), VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)    
-    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Mr. " + Str(i), VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)    
-    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Torplatz " + Str(i + Random(9, 1)), VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)    
-    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.15, 5, Str(Random(9, 0)), VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)    
-    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.20, 5, "mail" + Str(i) + "@test.com", VecVi::#LN_NEWLINE, VecVi::#BORDER_ALL)    
+    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.05, 5, Str(i), VecVi::#RIGHT, VecVi::#ALL)    
+    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Mr. " + Str(i), VecVi::#RIGHT, VecVi::#ALL)    
+    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Torplatz " + Str(i + Random(9, 1)), VecVi::#RIGHT, VecVi::#ALL)    
+    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.15, 5, Str(Random(9, 0)), VecVi::#RIGHT, VecVi::#ALL)    
+    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.20, 5, "mail" + Str(i) + "@test.com", VecVi::#NEWLINE, VecVi::#ALL)
   Next i
   
   VecVi::Ln(*VecVi, 5)
@@ -75,14 +78,14 @@ Procedure createVecVi()
   
   VecVi::Ln(*VecVi, 55)
   
-  VecVi::TextCell(*VecVi, 0, 5, "There is a page break in the following table:", VecVi::#LN_NEWLINE)
+  VecVi::TextCell(*VecVi, 0, 5, "There is a page break in the following table:", VecVi::#NEWLINE)
   
   VecVi::Ln(*VecVi, 5)
   
   For i = 0 To 20
-    VecVi::TextCell(*VecVi, 50, 5, Str(i) + " + " + Str(i), VecVi::#LN_RIGHT, VecVi::#BORDER_TOP | VecVi::#BORDER_LEFT)
-    VecVi::TextCell(*VecVi,  5, 5, " = ", VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)
-    VecVi::TextCell(*VecVi, 50, 5, Str(i + i), VecVi::#LN_NEWLINE, VecVi::#BORDER_TOP | VecVi::#BORDER_RIGHT)
+    VecVi::TextCell(*VecVi, 50, 5, Str(i) + " + " + Str(i), VecVi::#RIGHT, VecVi::#TOP | VecVi::#LEFT)
+    VecVi::TextCell(*VecVi,  5, 5, " = ", VecVi::#RIGHT, VecVi::#ALL)
+    VecVi::TextCell(*VecVi, 50, 5, Str(i + i), VecVi::#NEWLINE, VecVi::#TOP | VecVi::#RIGHT)
   Next i
   
   VecVi::ln(*VecVi)
@@ -94,9 +97,9 @@ Procedure createVecVi()
   ; //
   VecVi::BeginFooter(*VecVi)
   VecVi::SetFont(*VecVi, "Arial", #PB_Font_Italic, 3)
-  VecVi::HorizontalLine(*VecVi, 100, Vecvi::#ALIGN_CENTER)
+  VecVi::HorizontalLine(*VecVi, 100, Vecvi::#CENTER)
   VecVi::Ln(*VecVi, 5)
-  Vecvi::TextCell(*VecVi, 0, 5, "The new footer without page numbers", VecVi::#LN_DOWN, VecVi::#BORDER_NONE, VecVi::#ALIGN_CENTER)
+  Vecvi::TextCell(*VecVi, 0, 5, "The new footer without page numbers", VecVi::#BOTTOM, #False, VecVi::#CENTER)
 
   ; //
   ; create a page without numbering
@@ -104,29 +107,29 @@ Procedure createVecVi()
   VecVi::BeginPage(*VecVi, VecVi::#FORMAT_INHERIT, VecVi::#ORIENTATION_INHERIT, -1)
   Vecvi::BeginBlock(*VecVi)
   Vecvi::SetFont(*VecVi, "Arial", 0, 4)  
-  VecVi::TextCell(*VecVi, 0, 5, "On this page, there will be no page breaks within a table.", VecVi::#LN_DOWN)
+  VecVi::TextCell(*VecVi, 0, 5, "On this page, there will be no page breaks within a table.", VecVi::#BOTTOM)
   
   For i = 0 To 6
     VecVi::BeginBlock(*VecVi, #False)
     VecVi::SetLineColor(*VecVi, RGBA(Random(255), Random(255), Random(255), 255))
     For j = 0 To 6
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " foo " + Str(j), VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bar " + Str(j), VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bla " + Str(j), VecVi::#LN_RIGHT, VecVi::#BORDER_ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " blub " + Str(j), VecVi::#LN_NEWLINE, VecVi::#BORDER_ALL)
+      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " foo " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bar " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bla " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " blub " + Str(j), VecVi::#NEWLINE, VecVi::#ALL)
     Next j
     VecVi::Ln(*VecVi, 10)
   Next i
   VecVi::SetLineColor(*VecVi, $FF000000)
-
+  
   ; //
   ; restore the first footer
   ; //
   VecVi::BeginFooter(*VecVi)
-  VecVi::HorizontalLine(*VecVi, 100, Vecvi::#ALIGN_CENTER)
+  VecVi::HorizontalLine(*VecVi, 100, Vecvi::#CENTER)
   VecVi::Ln(*VecVi, 5)
   VecVi::SetFont(*VecVi, "Arial", #PB_Font_Italic, 3)
-  Vecvi::TextCell(*VecVi, 0, 5, "Page {Nb} of {NbTotal}", VecVi::#LN_DOWN, VecVi::#BORDER_NONE, VecVi::#ALIGN_CENTER)
+  Vecvi::TextCell(*VecVi, 0, 5, "Page {Nb} of {NbTotal}", VecVi::#BOTTOM, #False, VecVi::#CENTER)
 
   ; //
   ; define the next page
@@ -134,9 +137,27 @@ Procedure createVecVi()
   VecVi::BeginPage(*VecVi)
   VecVi::BeginBlock(*VecVi)
   VecVi::SetFont(*VecVi, "Arial", 0, 4)
-  VecVi::TextCell(*VecVi, 0, 5, "This page is numbered again.", VecVi::#LN_DOWN)
+  VecVi::TextCell(*VecVi, 0, 5, "This page is numbered again.", VecVi::#BOTTOM)
   
-  VecVi::ImageCell(*VecVi, 0, 30, 0, 0, LoadImage(#PB_Any, #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp"))
+  VecVi::ImageCell(*VecVi, 0, 30, 80, 15, LoadImage(#PB_Any, #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp"), VecVi::#NEWLINE, VecVi::#ALL)
+  
+  VecVi::Ln(*VecVi, 5)
+  
+  For i = 0 To 7
+    VecVi::SetLineColor(*VecVi, RGBA(Random(255), Random(255), Random(255), 255))
+    VecVi::SetFillColor(*VecVi, RGBA(Random(255), Random(255), Random(255), 255))
+    VecVi::SetLineSize(*VecVi, Random(3, 1))
+    VecVi::Rectangle(*VecVi, VecVi::GetPageWidth(*VecVi, 0) / 8, 15, VecVi::#RIGHT, VecVi::#ALL, #True)
+  Next
+  
+  VecVi::Ln(*VecVi, 20)
+  
+  VecVi::SetLineSize(*VecVi, 0.5)
+  For i = 0 To 5
+    VecVi::SetLineColor(*VecVi, RGBA(Random(255), Random(255), Random(255), 255))
+    VecVi::SetFillColor(*VecVi, RGBA(Random(255), Random(255), Random(255), 255))
+    VecVi::Sector(*VecVi, 20, 15, Random(120, 0), Random(360, 180), VecVi::#RIGHT, Random(1, 0), Random(1, 0), Random(1, 0))
+  Next
   
 EndProcedure
 
@@ -162,6 +183,7 @@ Procedure main()
   iMaxPage = VecVi::GetRealPageCount(*VecVi)
   i = 1
   SetGadgetText(3, "Seite " + Str(i) + " von " + Str(iMaxPage))
+
   VecVi::OutputCanvas(*VecVi, 0, i)
   
   Repeat
