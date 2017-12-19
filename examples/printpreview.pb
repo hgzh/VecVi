@@ -1,6 +1,29 @@
 ﻿XIncludeFile "../VecVi.pb"
 
 Global *VecVi
+Global.i iCurPage,
+         iMaxPage
+Global.d dRes
+
+UsePNGImageEncoder()
+
+Runtime Enumeration Window
+  #WIN_MAIN
+EndEnumeration
+
+Runtime Enumeration Gadget
+  #CNV_PREVIEW
+EndEnumeration
+
+Runtime Enumeration Toolbar
+  #TBA_MAIN
+  #TBB_PRINT
+  #TBB_ZOOMO
+  #TBB_ZOOMI
+  #TBB_SINGLE
+  #TBB_PAGEP
+  #TBB_PAGEN
+EndEnumeration
 
 Procedure createVecVi()
   Protected.i i,
@@ -10,8 +33,8 @@ Procedure createVecVi()
   ; //
   ; create the VecVi object
   ; //
-  *VecVi = VecVi::Create(VecVi::#FORMAT_A4, VecVi::#ORIENTATION_VERTICAL)
-  
+  *VecVi = VecVi::Create(VecVi::#FORMAT_A4, VecVi::#VERTICAL)
+    
   ; //
   ; define a page header
   ; //
@@ -104,7 +127,7 @@ Procedure createVecVi()
   ; //
   ; create a page without numbering
   ; //
-  VecVi::BeginPage(*VecVi, VecVi::#FORMAT_INHERIT, VecVi::#ORIENTATION_INHERIT, -1)
+  VecVi::BeginPage(*VecVi, VecVi::#FORMAT_INHERIT, VecVi::#INHERIT, -1)
   Vecvi::BeginBlock(*VecVi)
   Vecvi::SetFont(*VecVi, "Arial", 0, 4)  
   VecVi::TextCell(*VecVi, 0, 5, "On this page, there will be no page breaks within a table.", VecVi::#BOTTOM)
@@ -161,68 +184,205 @@ Procedure createVecVi()
   
 EndProcedure
 
+Procedure move()
+  Protected.i iWheelData,
+              iEventType,
+              iChange
+  Protected.d dOffTop,
+              dOffLeft,
+              dScale
+  Static.i siMode,
+           siMouseX,
+           siMouseY
+  
+  iEventType = EventType()
+
+  dScale     = VecVi::GetOutputScale(*VecVi, 0)
+  dOffTop    = VecVi::GetOutputOffset(*VecVi, VecVi::#TOP)
+  dOffLeft   = VecVi::GetOutputOffset(*VecVi, VecVi::#LEFT)
+  
+  If iEventType = #PB_EventType_MouseWheel
+    iChange    = 1
+    iWheelData = GetGadgetAttribute(0, #PB_Canvas_WheelDelta)
+    dOffTop + (iWheelData * 50) / dRes / dScale
+    
+  ElseIf iEventType = #PB_EventType_LeftButtonDown
+    siMode = 1
+    SetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_Cursor, #PB_Cursor_Arrows)
+    siMouseX = GetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_MouseX)
+    siMouseY = GetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_MouseY)
+    
+  ElseIf iEventType = #PB_EventType_LeftButtonUp
+    siMode = 0
+    SetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_Cursor, #PB_Cursor_Default)
+    
+  ElseIf iEventType = #PB_EventType_MouseMove
+    If siMode = 1
+      iChange = 1
+      siMouseX = GetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_MouseX) - siMouseX
+      siMouseY = GetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_MouseY) - siMouseY
+            
+      dOffLeft + siMouseX / dRes / dScale
+      dOffTop  + siMouseY / dRes / dScale
+      
+      siMouseX = GetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_MouseX)
+      siMouseY = GetGadgetAttribute(#CNV_PREVIEW, #PB_Canvas_MouseY)    
+    EndIf
+  EndIf
+  
+  If iChange = 1
+    VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, dOffTop)
+    VecVi::SetOutputOffset(*VecVi, VecVi::#LEFT, dOffLeft)
+    VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+    
+    If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 0
+      If -dOffTop > -VecVi::GetRealPageStartOffset(*VecVi, iCurPage + 1) And iCurPage < iMaxPage
+        iCurPage + 1
+      EndIf
+      
+      If -dOffTop < -VecVi::GetRealPageStartOffset(*VecVi, iCurPage - 1) And iCurPage > 1
+        iCurPage - 1
+      EndIf
+    EndIf
+    
+  EndIf
+  
+EndProcedure
+
+Procedure zoom()
+  Protected.d dScale
+  
+  dScale = VecVi::GetOutputScale(*VecVi, 0)
+  
+  If EventMenu() = #TBB_ZOOMI
+    dScale + dScale * 0.1
+  ElseIf EventMenu() = #TBB_ZOOMO
+    dScale - dScale * 0.1
+  EndIf
+  
+  VecVi::SetOutputScale(*VecVi, dScale, dScale)
+  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+  
+EndProcedure
+
+Procedure printDocument()
+
+  If Not PrintRequester()
+    ProcedureReturn 
+  EndIf
+  If StartPrinting("Test")
+    VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, 0)
+    VecVi::SetOutputOffset(*VecVi, VecVi::#LEFT, 0)
+    VecVi::SetOutputScale(*VecVi, 1, 1)
+    VecVi::OutputPrinter(*VecVi)
+    StopPrinting()
+  EndIf
+  
+EndProcedure
+
+Procedure switchOutputMode()
+  
+  If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
+    VecVi::SetSinglePageOutput(*VecVi, 0, 0)
+  Else
+    VecVi::SetSinglePageOutput(*VecVi, VecVi::#VERTICAL, 10)
+    iCurPage = 1
+  EndIf
+  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+  
+EndProcedure
+
+Procedure simpleRedraw()
+  
+  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+  
+EndProcedure
+
+Procedure stepPage()
+  Protected.i iButton
+  Protected.d dOffTop
+  
+  iButton = EventMenu()
+  dOffTop = VecVi::GetOutputOffset(*VecVi, VecVi::#TOP)
+  
+  If iButton = #TBB_PAGEN
+    If iCurPage < iMaxPage
+      iCurPage + 1
+      If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
+        VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+      Else
+        VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, VecVi::GetRealPageStartOffset(*VecVi, iCurPage))
+        VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+      EndIf
+    EndIf
+  ElseIf iButton = #TBB_PAGEP
+    If iCurPage > 1
+      iCurPage - 1
+      If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
+        VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+      Else
+        VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, VecVi::GetRealPageStartOffset(*VecVi, iCurPage))      
+        VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+      EndIf
+    EndIf
+  EndIf
+  
+EndProcedure
+
 Procedure main()
+  Protected.s zXML
   Protected.i i,
-              iEvent,
-              iMaxPage
-              
-  OpenWindow(0, 0, 0, 800, 650, "VecVi", #PB_Window_SystemMenu | #PB_Window_ScreenCentered)
+              iDialog,
+              iEvent
   
-  ButtonGadget(1, 5, 5, 100, 25, "Drucken")
-  ButtonGadget(2, 110, 5, 50, 25, "<")
-  StringGadget(3, 165, 5, 100, 25, "", #PB_String_ReadOnly)
-  ButtonGadget(4, 270, 5, 50, 25, ">")
-  TextGadget(6, 350, 5, 30, 25, "Zoom:")
-  ScrollBarGadget(5, 400,  5, 300, 20, 0, 200, 1)
-    SetGadgetState(5, 100)
+  zXML = "<window name='WIN_MAIN' id='WIN_MAIN' text='VecVi Preview Window' flags='#PB_Window_SystemMenu | #PB_Window_ScreenCentered | #PB_Window_SizeGadget | #PB_Window_MaximizeGadget | #PB_Window_MinimizeGadget'>"
+  zXML + "  <gridbox columns='1' rowexpand='item:2'>"
+  zXML + "    <empty colspan='2' height='15' />"
+  zXML + "    <canvas id='#CNV_PREVIEW' flags='#PB_Canvas_ClipMouse | #PB_Canvas_Keyboard' width='800' height='600' />"
+  zXML + "  </gridbox>"
+  zXML + "</window>"
+  iDialog = CreateDialog(#PB_Any)
+  If Not IsDialog(iDialog) : ProcedureReturn : EndIf
+  If Not OpenXMLDialog(iDialog, ParseXML(#PB_Any, zXML), "WIN_MAIN") : ProcedureReturn : EndIf
   
-  CanvasGadget(0, 5, 35, 790, 600)
+  If CreateToolBar(#TBA_MAIN, WindowID(#WIN_MAIN), #PB_ToolBar_Small | #PB_ToolBar_Text | #PB_ToolBar_InlineText)
+    ToolBarStandardButton(#TBB_PRINT, #PB_ToolBarIcon_Print, #PB_ToolBar_Normal, "Print")
+    ToolBarSeparator()
+    ToolBarStandardButton(#TBB_ZOOMI, #PB_ToolBarIcon_Find, #PB_ToolBar_Normal, "+")
+    ToolBarStandardButton(#TBB_ZOOMO, #PB_ToolBarIcon_Find, #PB_ToolBar_Normal, "-")
+    ToolBarSeparator()
+    ToolBarStandardButton(#TBB_SINGLE, #PB_ToolBarIcon_PrintPreview, #PB_ToolBar_Toggle, "Single Page View")
+      SetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE, 1)
+    ToolBarStandardButton(#TBB_PAGEP, #PB_ToolBarIcon_Undo, #PB_ToolBar_Normal, "Previous Page")
+    ToolBarStandardButton(#TBB_PAGEN, #PB_ToolBarIcon_Redo, #PB_ToolBar_Normal, "Next Page")
+  EndIf
   
+  dRes = VecVi::GetCanvasOutputResolution(#CNV_PREVIEW) / 25.4
+    
   createVecVi()
   
   iMaxPage = VecVi::GetRealPageCount(*VecVi)
-  i = 1
-  SetGadgetText(3, "Seite " + Str(i) + " von " + Str(iMaxPage))
-
-  VecVi::OutputCanvas(*VecVi, 0, i)
+  iCurPage = 1
   
+  BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_MouseWheel)
+  BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_LeftButtonDown)
+  BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_LeftButtonUp)
+  BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_MouseMove)
+  BindGadgetEvent(#CNV_PREVIEW, @zoom(), #PB_EventType_KeyDown)
+  
+  BindEvent(#PB_Event_Menu, @printDocument(), #WIN_MAIN, #TBB_PRINT)
+  BindEvent(#PB_Event_Menu, @zoom(), #WIN_MAIN, #TBB_ZOOMI)
+  BindEvent(#PB_Event_Menu, @zoom(), #WIN_MAIN, #TBB_ZOOMO)
+  BindEvent(#PB_Event_Menu, @switchOutputMode(), #WIN_MAIN, #TBB_SINGLE)
+  BindEvent(#PB_Event_Menu, @stepPage(), #WIN_MAIN, #TBB_PAGEN)
+  BindEvent(#PB_Event_Menu, @stepPage(), #WIN_MAIN, #TBB_PAGEP)
+  
+  BindEvent(#PB_Event_SizeWindow, @simpleRedraw(), #WIN_MAIN)
+  
+  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
+    
   Repeat
     iEvent = WaitWindowEvent()
-    
-    Select iEvent
-      Case #PB_Event_Gadget
-        Select EventGadget()
-          
-          Case 1
-            If Not PrintRequester()
-              Continue
-            EndIf
-            If StartPrinting("Test")
-              VecVi::OutputPrinter(*VecVi)
-              StopPrinting()
-            EndIf
-            
-          Case 2
-            If i > 1
-              i - 1
-              SetGadgetText(3, "Seite " + Str(i) + " von " + Str(iMaxPage))
-              VecVi::OutputCanvas(*VecVi, 0, i)
-            EndIf
-          
-          Case 4
-            If i < iMaxPage
-              i + 1
-              SetGadgetText(3, "Seite " + Str(i) + " von " + Str(iMaxPage))
-              VecVi::OutputCanvas(*VecVi, 0, i)
-            EndIf
-            
-          Case 5
-            VecVi::SetOutputScale(*VecVi, GetGadgetState(5) / 100, GetGadgetState(5) / 100)
-            VecVi::OutputCanvas(*VecVi, 0, i)
-          
-        EndSelect
-        
-    EndSelect
     
   Until iEvent = #PB_Event_CloseWindow
 EndProcedure
