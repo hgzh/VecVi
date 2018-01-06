@@ -2,7 +2,7 @@
 ; ################ VECVI (VectorView) MODULE ################
 ; ###########################################################
 
-;   written by Andesdaf/hgzh, 2017
+;   written by Andesdaf/hgzh, 2017-2018
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
@@ -11,7 +11,7 @@
 
 ; ###########################################################
 ;                          LICENSING
-; Copyright (c) 2017 Andesdaf/hgzh
+; Copyright (c) 2017-2018 Andesdaf/hgzh
 
 ; Permission is hereby granted, free of charge, to any person
 ; obtaining a copy of this software and associated
@@ -60,6 +60,12 @@
 ;    - added GetPageCount()
 ;    - added piNet support to GetPageWidth() / GetPageHeight()
 ;    - added GetCanvasOutputResolution()
+;   v.1.04 (2018-01-06)
+;    - fixed bug with orientations and format
+;    - fixed bug with cell vertical/horizontal alignment
+;    - fixed bug with cell borders
+;    - fixed bugs with page breaks
+;    - fixed bugs with total page count calculation
 ; ###########################################################
 
 EnableExplicit
@@ -207,6 +213,9 @@ Structure VECVI_PAGE
   
   iNb.i
   iNbStartValue.i
+  
+  iOrientation.i
+  zFormat.s
   
   Sizes.VECVI_SIZES
   Margins.VECVI_MARGINS
@@ -603,7 +612,8 @@ Procedure.i _calcRealPageCount(*psV.VECVI, piPage.i = 0, piPageNb.i = 0)
 ; returns    :: (i) number of real pages
 ; remarks    :: 
 ; ----------------------------------------
-  Protected.i iNrP
+  Protected.i iNrP,
+              iBreak
   Protected.d dPageH,
               dPageY,
               dBlockYKorr
@@ -636,11 +646,13 @@ Procedure.i _calcRealPageCount(*psV.VECVI, piPage.i = 0, piPageNb.i = 0)
           ; //
           ; accept page breaks within blocks, check for page breaks in elements
           ; //
+          iBreak = 0
           ForEach *psV\Pages()\Blocks()\Elements()
             If dPageY + *psV\Pages()\Blocks()\Elements()\d("_BlockY") - dBlockYKorr + *psV\Pages()\Blocks()\Elements()\d("_BlockH") >= dPageH
               If Not (piPageNb = 1 And *psV\Pages()\iNb = -1)
                 iNrP + 1
               EndIf
+              iBreak = 1
               dPageH = _calcPageHeight(*psV, #BOTTOM, 0, 1)
               dPageY = _calcPageHeight(*psV, #TOP, 1, 1)
               ; //
@@ -649,6 +661,9 @@ Procedure.i _calcRealPageCount(*psV.VECVI, piPage.i = 0, piPageNb.i = 0)
               dBlockYKorr = *psV\Pages()\Blocks()\Elements()\d("_BlockY")
             EndIf
           Next
+          If iBreak = 0
+            dPageY + _calcBlockHeight(@*psV\Pages()\Blocks())
+          EndIf
         EndIf
       Next
     Next
@@ -680,11 +695,13 @@ Procedure.i _calcRealPageCount(*psV.VECVI, piPage.i = 0, piPageNb.i = 0)
             ; //
             ; accept page breaks within blocks, check for page breaks in elements
             ; //
+            iBreak = 0
             ForEach *psV\Pages()\Blocks()\Elements()
               If dPageY + *psV\Pages()\Blocks()\Elements()\d("_BlockY") - dBlockYKorr + *psV\Pages()\Blocks()\Elements()\d("_BlockH") > dPageH
                 If Not (piPageNb = 1 And *psV\Pages()\iNb = -1)
                   iNrP + 1
                 EndIf
+                iBreak = 1
                 dPageH = _calcPageHeight(*psV, #BOTTOM, 0, 1)
                 dPageY = _calcPageHeight(*psV, #TOP, 1, 1)
                 ; //
@@ -693,6 +710,9 @@ Procedure.i _calcRealPageCount(*psV.VECVI, piPage.i = 0, piPageNb.i = 0)
                 dBlockYKorr = *psV\Pages()\Blocks()\Elements()\d("_BlockY")
               EndIf
             Next
+            If iBreak = 0
+              dPageY + _calcBlockHeight(@*psV\Pages()\Blocks())
+            EndIf
           EndIf
         Next
         Break
@@ -774,35 +794,7 @@ Procedure _processTextCell(*psV.VECVI, *psT.VECVI_BLOCK)
 
     dFillW = \d("W")
     dFillH = \d("H")
-    
-    ; //
-    ; border
-    ; //
-    VectorSourceColor(\i("LineColor"))
-    If \i("Border") = #ALL
-      AddPathBox(dPosX, dPosY, \d("W"), \d("H"))
-      AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      _applyLineStyle(@*psT\Elements())
-    ElseIf \i("Border") <> #False
-      If \i("Border") & #TOP
-        MovePathCursor(dPosX, dPosY)
-        AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #BOTTOM
-        MovePathCursor(dPosX, dPosY + \d("H"))
-        AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #LEFT
-        MovePathCursor(dPosX, dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
-        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #RIGHT
-        MovePathCursor(dPosX + \d("W"), dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
-        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
-      EndIf
-      _applyLineStyle(@*psT\Elements())
-    EndIf
-    
+
     ; //
     ; fill
     ; //
@@ -835,6 +827,34 @@ Procedure _processTextCell(*psV.VECVI, *psT.VECVI_BLOCK)
     EndIf
     
     ; //
+    ; border
+    ; //
+    VectorSourceColor(\i("LineColor"))
+    If \i("Border") = #ALL
+      AddPathBox(dPosX, dPosY, \d("W"), \d("H"))
+      AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      _applyLineStyle(@*psT\Elements())
+    ElseIf \i("Border") <> #False
+      If \i("Border") & #TOP
+        MovePathCursor(dPosX, dPosY)
+        AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #BOTTOM
+        MovePathCursor(dPosX, dPosY + \d("H"))
+        AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #LEFT
+        MovePathCursor(dPosX, dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
+        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #RIGHT
+        MovePathCursor(dPosX + \d("W"), dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
+        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
+      EndIf
+      _applyLineStyle(@*psT\Elements())
+    EndIf
+    
+    ; //
     ; text
     ; //
     VectorFont(FontID(\i("Font")), \d("FontSize"))
@@ -845,9 +865,9 @@ Procedure _processTextCell(*psV.VECVI, *psT.VECVI_BLOCK)
     ; //
     dTextX = dPosX + *psV\CellMargins\dLeft - VectorTextWidth(\s("Text"), #PB_VectorText_Visible | #PB_VectorText_Offset)
     If \i("HAlign") = #RIGHT
-      dTextX + \d("W") - VectorTextWidth(\s("Text"), #PB_VectorText_Visible) - *psV\CellMargins\dRight
+      dTextX + (\d("W") - *psV\CellMargins\dRight - *psV\CellMargins\dLeft) - VectorTextWidth(\s("Text"), #PB_VectorText_Visible)
     ElseIf \i("HAlign") = #CENTER
-      dTextX + \d("W") / 2 - VectorTextWidth(\s("Text"), #PB_VectorText_Visible) / 2 - *psV\CellMargins\dRight
+      dTextX + (\d("W") - *psV\CellMargins\dRight - *psV\CellMargins\dLeft) / 2 - VectorTextWidth(\s("Text"), #PB_VectorText_Visible) / 2
     EndIf
     
     ; //
@@ -855,9 +875,9 @@ Procedure _processTextCell(*psV.VECVI, *psT.VECVI_BLOCK)
     ; //
     dTextY = dPosY + *psV\CellMargins\dTop - VectorTextHeight(\s("Text"), #PB_VectorText_Visible | #PB_VectorText_Offset)
     If \i("VAlign") = #BOTTOM
-      dTextY + \d("H") - VectorTextHeight(\s("Text"), #PB_VectorText_Visible) - *psV\CellMargins\dBottom
+      dTextY + (\d("H") - *psV\CellMargins\dBottom - *psV\CellMargins\dTop) - VectorTextHeight(\s("Text"), #PB_VectorText_Visible)
     ElseIf \i("VAlign") = #CENTER
-      dTextY + \d("H") / 2 - VectorTextHeight(\s("Text"), #PB_VectorText_Visible) / 2 - *psV\CellMargins\dBottom
+      dTextY + (\d("H") - *psV\CellMargins\dBottom - *psV\CellMargins\dTop) / 2 - VectorTextHeight(\s("Text"), #PB_VectorText_Visible) / 2
     EndIf
     
     MovePathCursor(dTextX, dTextY)
@@ -905,45 +925,17 @@ Procedure _processParagraphCell(*psV.VECVI, *psT.VECVI_BLOCK)
     dFillY = dPosY
     
     If \d("W") = 0
-      \d("W") = _calcPageWidth(*psV, #RIGHT) - dPosX
+      \d("W") = _calcPageWidth(*psV, #RIGHT, 1) - dPosX
     EndIf
 
     VectorFont(FontID(\i("Font")), \d("FontSize"))
     If \d("H") = 0
-      \d("H") = VectorParagraphHeight(\s("Text"), \d("W"), *psV\Pages()\Sizes\dHeight) + *psV\CellMargins\dBottom
+      \d("H") = VectorParagraphHeight(\s("Text"), \d("W"), *psV\Pages()\Sizes\dHeight) + *psV\CellMargins\dBottom + *psV\CellMargins\dTop
     EndIf
 
     dFillW = \d("W")
     dFillH = \d("H")
-    
-    ; //
-    ; border
-    ; //
-    VectorSourceColor(\i("LineColor"))
-    If \i("Border") = #ALL
-      AddPathBox(dPosX, dPosY, \d("W"), \d("H"))
-      AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      _applyLineStyle(@*psT\Elements())
-    ElseIf \i("Border") <> #False
-      If \i("Border") & #TOP
-        MovePathCursor(dPosX, dPosY)
-        AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #BOTTOM
-        MovePathCursor(dPosX, dPosY + \d("H"))
-        AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #LEFT
-        MovePathCursor(dPosX, dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
-        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #RIGHT
-        MovePathCursor(dPosX + \d("W"), dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
-        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
-      EndIf
-      _applyLineStyle(@*psT\Elements())
-    EndIf
-    
+
     ; //
     ; fill
     ; //
@@ -976,6 +968,34 @@ Procedure _processParagraphCell(*psV.VECVI, *psT.VECVI_BLOCK)
     EndIf
 
     ; //
+    ; border
+    ; //
+    VectorSourceColor(\i("LineColor"))
+    If \i("Border") = #ALL
+      AddPathBox(dPosX, dPosY, \d("W"), \d("H"))
+      AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      _applyLineStyle(@*psT\Elements())
+    ElseIf \i("Border") <> #False
+      If \i("Border") & #TOP
+        MovePathCursor(dPosX, dPosY)
+        AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #BOTTOM
+        MovePathCursor(dPosX, dPosY + \d("H"))
+        AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #LEFT
+        MovePathCursor(dPosX, dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
+        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #RIGHT
+        MovePathCursor(dPosX + \d("W"), dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
+        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
+      EndIf
+      _applyLineStyle(@*psT\Elements())
+    EndIf
+
+    ; //
     ; text
     ; //
     VectorSourceColor(\i("TextColor"))
@@ -986,7 +1006,7 @@ Procedure _processParagraphCell(*psV.VECVI, *psT.VECVI_BLOCK)
     EndIf
     
     MovePathCursor(dPosX + *psV\CellMargins\dLeft, dPosY + *psV\CellMargins\dTop)
-    DrawVectorParagraph(\s("Text"), \d("W") - *psV\CellMargins\dRight, \d("H") - *psV\CellMargins\dBottom, iHAlign)
+    DrawVectorParagraph(\s("Text"), \d("W") - *psV\CellMargins\dLeft - *psV\CellMargins\dRight, \d("H") - *psV\CellMargins\dTop - *psV\CellMargins\dBottom, iHAlign)
     
     ; //
     ; ln
@@ -1036,35 +1056,7 @@ Procedure _processImageCell(*psV.VECVI, *psT.VECVI_BLOCK)
 
     dFillW = \d("W")
     dFillH = \d("H")
-    
-    ; //
-    ; border
-    ; //
-    VectorSourceColor(\i("LineColor"))
-    If \i("Border") = #ALL
-      AddPathBox(dPosX, dPosY, \d("W"), \d("H"))
-      AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      _applyLineStyle(@*psT\Elements())
-    ElseIf \i("Border") <> #False
-      If \i("Border") & #TOP
-        MovePathCursor(dPosX, dPosY)
-        AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #BOTTOM
-        MovePathCursor(dPosX, dPosY + \d("H"))
-        AddPathLine(\d("W"), 0, #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #LEFT
-        MovePathCursor(dPosX, dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
-        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
-      EndIf
-      If \i("Border") & #RIGHT
-        MovePathCursor(dPosX + \d("W"), dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
-        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
-      EndIf
-      _applyLineStyle(@*psT\Elements())
-    EndIf
-    
+
     ; //
     ; fill
     ; //
@@ -1095,15 +1087,43 @@ Procedure _processImageCell(*psV.VECVI, *psT.VECVI_BLOCK)
       AddPathBox(dFillX, dFillY, dFillW, dFillH)
       FillPath()
     EndIf
+
+    ; //
+    ; border
+    ; //
+    VectorSourceColor(\i("LineColor"))
+    If \i("Border") = #ALL
+      AddPathBox(dPosX, dPosY, \d("W"), \d("H"))
+      AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      _applyLineStyle(@*psT\Elements())
+    ElseIf \i("Border") <> #False
+      If \i("Border") & #TOP
+        MovePathCursor(dPosX, dPosY)
+        AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #BOTTOM
+        MovePathCursor(dPosX, dPosY + \d("H"))
+        AddPathLine(\d("W"), 0, #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #LEFT
+        MovePathCursor(dPosX, dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
+        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
+      EndIf
+      If \i("Border") & #RIGHT
+        MovePathCursor(dPosX + \d("W"), dPosY - Bool(\i("Border") & #TOP) * (\d("BorderSize") / 2))
+        AddPathLine(0, \d("H") + (Bool(\i("Border") & #TOP) + Bool(\i("Border") & #BOTTOM)) * (\d("BorderSize") / 2), #PB_Path_Relative)
+      EndIf
+      _applyLineStyle(@*psT\Elements())
+    EndIf
     
     ; //
     ; horizontal align
     ; //
     dImageX = dPosX + *psV\CellMargins\dLeft
     If \i("HAlign") = #RIGHT
-      dImageX + \d("W") - \d("ImageW") - *psV\CellMargins\dRight
+      dImageX + (\d("W") - *psV\CellMargins\dRight - *psV\CellMargins\dLeft) - \d("ImageW")
     ElseIf \i("HAlign") = #CENTER
-      dImageX + \d("W") / 2 - \d("ImageW") / 2 - *psV\CellMargins\dRight
+      dImageX + (\d("W") - *psV\CellMargins\dRight - *psV\CellMargins\dLeft) / 2 - \d("ImageW") / 2
     EndIf
     
     ; //
@@ -1111,9 +1131,9 @@ Procedure _processImageCell(*psV.VECVI, *psT.VECVI_BLOCK)
     ; //
     dImageY = dPosY + *psV\CellMargins\dTop
     If \i("VAlign") = #BOTTOM
-      dImageY + \d("H") - \d("ImageH") - *psV\CellMargins\dBottom
+      dImageY + (\d("H") - *psV\CellMargins\dBottom - *psV\CellMargins\dTop) - \d("ImageH")
     ElseIf \i("VAlign") = #CENTER
-      dImageY + \d("H") / 2 - \d("ImageH") / 2 - *psV\CellMargins\dBottom
+      dImageY + (\d("H") - *psV\CellMargins\dBottom - *psV\CellMargins\dTop) / 2 - \d("ImageH") / 2
     EndIf
     
     MovePathCursor(dImageX, dImageY)
@@ -1766,7 +1786,7 @@ Procedure _processBlocks(*psV.VECVI)
     ; if page breaks are forbidden within this block, check if the block size fits the
     ; left y space on the page, and create a new page, if it is necessary.
     ; //
-    If *psV\Pages()\Blocks()\iPageBreak = #False And *psV\Pages()\Pos\dY + _calcBlockHeight(@*psV\Pages()\Blocks()) > _calcPageHeight(*psV)
+    If *psV\Pages()\Blocks()\iPageBreak = #False And *psV\Pages()\Pos\dY + _calcBlockHeight(@*psV\Pages()\Blocks()) > _calcPageHeight(*psV, #BOTTOM)
       _processEndPage(*psV)
       If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
         ; //
@@ -1947,6 +1967,8 @@ Procedure.i Create(pzFormat.s, piOrientation.i)
   ; //
   ; set default page sizes
   ; //
+  *psV\i("Orientation") = piOrientation
+  *psV\s("Format")      = pzFormat
   If piOrientation = #VERTICAL
     *psV\Sizes\dWidth  = ValD(StringField(pzFormat, 1, ","))
     *psV\Sizes\dHeight = ValD(StringField(pzFormat, 2, ","))
@@ -1963,10 +1985,10 @@ Procedure.i Create(pzFormat.s, piOrientation.i)
   *psV\Margins\dRight  = 12
   *psV\Margins\dTop    = 15
   
-  *psV\CellMargins\dBottom = 1.5
-  *psV\CellMargins\dLeft   = 1.5
-  *psV\CellMargins\dRight  = 1.5
-  *psV\CellMargins\dTop    = 1.5
+  *psV\CellMargins\dBottom = 1.0
+  *psV\CellMargins\dLeft   = 1.0
+  *psV\CellMargins\dRight  = 1.0
+  *psV\CellMargins\dTop    = 1.0
   
   ; //
   ; set default colors
@@ -2071,6 +2093,14 @@ Procedure BeginPage(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = 
     ; format
     ; //
     If pzFormat <> #FORMAT_INHERIT Or piOrientation <> #INHERIT
+      If pzFormat = #FORMAT_INHERIT
+        pzFormat = *psV\s("Format")
+      EndIf
+      If piOrientation = #INHERIT
+        piOrientation = *psV\i("Orientation")
+      EndIf
+      *psV\Pages()\iOrientation = piOrientation
+      *psV\Pages()\zFormat      = pzFormat
       If piOrientation = #VERTICAL
         \Sizes\dWidth  = ValD(StringField(pzFormat, 1, ","))
         \Sizes\dHeight = ValD(StringField(pzFormat, 2, ","))
@@ -2079,6 +2109,8 @@ Procedure BeginPage(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = 
         \Sizes\dHeight = ValD(StringField(pzFormat, 1, ","))
       EndIf
     Else
+      *psV\Pages()\iOrientation = *psV\i("Orientation")
+      *psV\Pages()\zFormat      = *psV\s("Format") 
       \Sizes = *psV\Sizes
     EndIf
     
@@ -2935,6 +2967,7 @@ Procedure TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder
     
     \d("_BlockY") = *Target\Pos\dY
     \d("_BlockH") = pdH
+    *psV\d("LastLn") = pdH
     If \i("Ln") <> #RIGHT
       _incrementPagePosition(*psV, 1, \d("_BlockH"))
     Else
@@ -3015,13 +3048,14 @@ Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piB
       iImage = CreateImage(#PB_Any, 1, 1)
       StartVectorDrawing(ImageVectorOutput(iImage, #PB_Unit_Millimeter))
       VectorFont(FontID(\i("Font")), \d("FontSize"))
-      pdH = VectorParagraphHeight(\s("TextRaw"), pdW, *psV\Pages()\Sizes\dHeight) + *psV\CellMargins\dBottom
+      pdH = VectorParagraphHeight(\s("TextRaw"), pdW, 1e6) + *psV\CellMargins\dBottom + *psV\CellMargins\dTop
       StopVectorDrawing()
       FreeImage(iImage)
     EndIf
-    
+        
     \d("_BlockY") = *Target\Pos\dY
     \d("_BlockH") = pdH
+    *psV\d("LastLn") = pdH
     If \i("Ln") <> #RIGHT
       _incrementPagePosition(*psV, 1, \d("_BlockH"))
     Else
@@ -3096,6 +3130,7 @@ Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i,
     
     \d("_BlockY") = *Target\Pos\dY
     \d("_BlockH") = pdH
+    *psV\d("LastLn") = pdH
     If \i("Ln") <> #RIGHT
       _incrementPagePosition(*psV, 1, \d("_BlockH"))
     Else
@@ -3272,7 +3307,8 @@ Procedure Ln(*psV.VECVI, pdLn.d = -1)
     
     \d("_BlockY") = *Target\Pos\dY
     If pdLn > -1
-      \d("_BlockH") = pdLn
+      \d("_BlockH")    = pdLn
+      *psV\d("LastLn") = pdLn
     Else
       \d("_BlockH") = *psV\d("LastLn")
     EndIf
@@ -3357,6 +3393,7 @@ Procedure Rectangle(*psV.VECVI, pdW.d, pdH.d, piLn.i = #RIGHT, piBorder.i = #Fal
     
     \d("_BlockY") = *Target\Pos\dY
     \d("_BlockH") = pdH
+    *psV\d("LastLn") = pdH
     If \i("Ln") <> #RIGHT
       _incrementPagePosition(*psV, 1, \d("_BlockH"))
     Else
@@ -3422,6 +3459,7 @@ Procedure Sector(*psV.VECVI, pdW.d, pdH.d, pdStart.d, pdEnd.d, piLn.i = #RIGHT, 
     
     \d("_BlockY") = *Target\Pos\dY
     \d("_BlockH") = pdH
+    *psV\d("LastLn") = pdH
     If \i("Ln") <> #RIGHT
       _incrementPagePosition(*psV, 1, \d("_BlockH"))
     Else
