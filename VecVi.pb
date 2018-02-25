@@ -66,6 +66,11 @@
 ;    - fixed bug with cell borders
 ;    - fixed bugs with page breaks
 ;    - fixed bugs with total page count calculation
+;   v.1.05 (2018-02-25)
+;    - added GetFontSize() / SetFontSize()
+;    - added GetFontStyle() / SetFontStyle()
+;    - added GetTextWidth()
+;    - changed internal image handling
 ; ###########################################################
 
 EnableExplicit
@@ -172,6 +177,13 @@ Structure VECVI_FONT
   iStyle.i
 EndStructure
 
+Structure VECVI_IMAGE
+  ; ----------------------------------------
+  ; public     :: image management
+  ; ----------------------------------------
+  iHandle.i
+EndStructure
+
 Structure VECVI_ELEMENT
   ; ----------------------------------------
   ; public     :: one element in a block
@@ -231,6 +243,7 @@ Structure VECVI
   ; ----------------------------------------
   List Pages.VECVI_PAGE()
   List Fonts.VECVI_FONT()
+  List Images.VECVI_IMAGE()
   
   iNrPages.i
   iNrRealPages.i
@@ -288,11 +301,16 @@ EndStructure
   Declare.i GetSinglePageOutput(*psV.VECVI)
   Declare   SetSinglePageOutput(*psV.VECVI, piOutput.i, pdMargin.d = 0)
   Declare   SetFont(*psV.VECVI, pzName.s, piStyle.i = 0, pdSize.d = 0)
+  Declare.d GetFontSize(*psV.VECVI)
+  Declare   SetFontSize(*psV.VECVI, pdSize.d)
+  Declare.i GetFontStyle(*psV.VECVI)
+  Declare.i SetFontStyle(*psV.VECVI, piStyle.i)
   Declare.i GetPageCount(*psV.VECVI)
   Declare.i GetRealPageCount(*psV.VECVI, piPage.i = 0)
   Declare.d GetRealPageStartOffset(*psV.VECVI, piPage)
   Declare.d GetOutputSize(*psV.VECVI, piOrientation.i)
   Declare.d GetCanvasOutputResolution(piCanvas.i)
+  Declare.d GetTextWidth(*psV.VECVI, pzText.s)
   Declare   SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
   Declare   TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
   Declare   ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
@@ -2046,6 +2064,13 @@ Procedure Free(*psV.VECVI)
   Next
   
   ; //
+  ; free images
+  ; //
+  ForEach *psV\Images()
+    FreeImage(*psV\Images()\iHandle)
+  Next
+  
+  ; //
   ; free structure
   ; //
   FreeStructure(*psV)
@@ -2720,6 +2745,77 @@ Procedure SetFont(*psV.VECVI, pzName.s, piStyle.i = 0, pdSize.d = 0)
   
 EndProcedure
 
+Procedure.d GetFontSize(*psV.VECVI)
+; ----------------------------------------
+; public     :: gets the current font size.
+; param      :: *psV - VecVi structure
+; returns    :: (d) font size
+; remarks    :: 
+; ----------------------------------------
+  
+  ProcedureReturn *psV\d("FontSize")
+  
+EndProcedure
+
+Procedure SetFontSize(*psV.VECVI, pdSize.d)
+; ----------------------------------------
+; public     :: sets the current font size.
+; param      :: *psV   - VecVi structure
+;               pdSize - new font size
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+  
+  *psV\d("FontSize") = pdSize
+  
+EndProcedure
+
+Procedure.i GetFontStyle(*psV.VECVI)
+; ----------------------------------------
+; public     :: gets the current font style
+; param      :: *psV - VecVi structure
+; returns    :: (i) font style, see SetFont()
+;               if no current font is set, returns -1
+; remarks    :: 
+; ----------------------------------------
+  
+  ForEach *psV\Fonts()
+    If *psV\Fonts()\iHandle = *psV\i("CurrentFont")
+      ProcedureReturn *psV\Fonts()\iStyle
+    EndIf
+  Next
+  
+  ProcedureReturn -1
+  
+EndProcedure
+
+Procedure.i SetFontStyle(*psV.VECVI, piStyle.i)
+; ----------------------------------------
+; public     :: sets the style of the currently used font family
+; param      :: *psV    - VecVi structure
+;               piStyle - new font style, see SetFont()
+; returns    :: 0: error while setting font style
+;               1: success
+; remarks    :: invokes SetFont()
+; ----------------------------------------
+  Protected.i iFound
+; ----------------------------------------
+  
+  ForEach *psV\Fonts()
+    If *psV\Fonts()\iHandle = *psV\i("CurrentFont")
+      iFound = 1
+      Break
+    EndIf
+  Next
+  
+  If iFound = 1
+    SetFont(*psV, *psV\Fonts()\zName, piStyle, *psV\d("FontSize"))
+  EndIf
+  
+  ProcedureReturn iFound
+  
+EndProcedure
+
 Procedure.i GetPageCount(*psV.VECVI)
 ; ----------------------------------------
 ; public     :: returns the number of pages in the current output
@@ -2874,12 +2970,42 @@ Procedure.d GetCanvasOutputResolution(piCanvas.i)
 ; remarks    :: useful to control the display of the output (e.g. print preview)
 ; ----------------------------------------
   Protected.d dRes
+; ----------------------------------------
   
   StartVectorDrawing(CanvasVectorOutput(piCanvas, #PB_Unit_Millimeter))
   dRes = VectorResolutionX()
   StopVectorDrawing()
   
   ProcedureReturn dRes
+  
+EndProcedure
+
+Procedure.d GetTextWidth(*psV.VECVI, pzText.s)
+; ----------------------------------------
+; public     :: calculates the needed width of the given text in the current font.
+; param      :: *psV   - VecVi structure
+;               pzText - text to calculate the width
+; returns    :: (d) needed text width
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iImage
+  Protected.d dWidth
+; ----------------------------------------
+  
+  iImage = CreateImage(#PB_Any, 1, 1)
+  If Not IsImage(iImage)
+    ProcedureReturn 0
+  EndIf
+  
+  If StartVectorDrawing(ImageVectorOutput(iImage, #PB_Unit_Millimeter))
+    VectorFont(FontID(*psV\i("CurrentFont")), *psV\d("FontSize"))
+    dWidth = VectorTextWidth(pzText, #PB_VectorText_Visible)
+    StopVectorDrawing()
+  EndIf
+  
+  FreeImage(iImage)
+  
+  ProcedureReturn dWidth
   
 EndProcedure
 
@@ -3107,6 +3233,13 @@ Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i,
 ; ----------------------------------------
   Protected *Target.VECVI_BLOCK
 ; ----------------------------------------
+  
+  ; //
+  ; create a copy of the image to allow disallocation
+  ; //
+  AddElement(*psV\Images())
+  *psV\Images()\iHandle = CopyImage(piImage, #PB_Any)
+  piImage = *psV\Images()\iHandle
   
   *Target = _defTarget(*psV)
   AddElement(*Target\Elements())
