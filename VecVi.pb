@@ -2,7 +2,7 @@
 ; ################ VECVI (VectorView) MODULE ################
 ; ###########################################################
 
-;   written by Andesdaf/hgzh, 2017-2018
+;   written by Andesdaf/hgzh, 2017-2019
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
@@ -11,7 +11,7 @@
 
 ; ###########################################################
 ;                          LICENSING
-; Copyright (c) 2017-2018 Andesdaf/hgzh
+; Copyright (c) 2017-2019 Andesdaf/hgzh
 
 ; Permission is hereby granted, free of charge, to any person
 ; obtaining a copy of this software and associated
@@ -71,6 +71,10 @@
 ;    - added GetFontStyle() / SetFontStyle()
 ;    - added GetTextWidth()
 ;    - changed internal image handling
+;   v.1.06 (2019-01-31)
+;    - added CanvasImage output channel
+;    - fixed bug with negative x/y position changes
+;    - fixed bug in GetPageHeight() using piNet parameter
 ; ###########################################################
 
 EnableExplicit
@@ -324,12 +328,13 @@ EndStructure
   Declare   Rectangle(*psV.VECVI, pdW.d, pdH.d, piLn.i = #RIGHT, piBorder.i = #False, piFill.i = #False)
   Declare   Sector(*psV.VECVI, pdW.d, pdH.d, pdStart.d, pdEnd.d, piLn.i = #RIGHT, piBorder.i = #False, piConnect.i = #True, piFill.i = #False)
   Declare   OutputCanvas(*psV.VECVI, piGadget.i, piRealPage.i = 1)
+  Declare   OutputCanvasImage(*psV.VECVI, piGadget.i, piImage.i, piRealPage.i = 1)
   Declare   OutputImage(*psV.VECVI, piImage.i, piRealPage.i = 1)
   Declare   OutputWindow(*psV.VECVI, piWindow.i, piRealPage.i = 1)
   Declare   OutputPrinter(*psV.VECVI)
   Declare   OutputSVG(*psV.VECVI, pzPath.s)
   Declare   OutputPDF(*psV.VECVI, pzPath.s)
-
+    
 EndDeclareModule
 
 Module VecVi
@@ -343,6 +348,7 @@ Enumeration Output
   ; internal   :: possible output types
   ; ----------------------------------------
   #OUTPUT_CANVAS
+  #OUTPUT_CANVASIMAGE
   #OUTPUT_IMAGE
   #OUTPUT_WINDOW
   #OUTPUT_PRINTER
@@ -605,7 +611,7 @@ Procedure _incrementPagePosition(*psV.VECVI, piXY.i, pdAdd.d = 0, pdSet.d = 0)
       *sVal = @*sPos\dY
     EndIf
     
-    If pdAdd > 0
+    If pdAdd <> 0
       PokeD(*sVal, PeekD(*sVal) + pdAdd)
     Else
       PokeD(*sVal, pdSet)
@@ -1610,7 +1616,7 @@ Procedure _processElements(*psV.VECVI, piTarget)
       ; //
       If *Target\iPageBreak = #True And *psV\Pages()\Pos\dY + \d("_BlockH") > _calcPageHeight(*psV, #BOTTOM)
         _processEndPage(*psV)
-        If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
+        If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_CANVASIMAGE Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
           ; //
           ; for single-page output channels, overwrite the former drawing if it's not the
           ; page that is wanted, or finish.
@@ -1806,7 +1812,7 @@ Procedure _processBlocks(*psV.VECVI)
     ; //
     If *psV\Pages()\Blocks()\iPageBreak = #False And *psV\Pages()\Pos\dY + _calcBlockHeight(@*psV\Pages()\Blocks()) > _calcPageHeight(*psV, #BOTTOM)
       _processEndPage(*psV)
-      If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
+      If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_CANVASIMAGE Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
         ; //
         ; for single-page output channels, overwrite the former drawing if it's not the
         ; page that is wanted, or finish.
@@ -1840,18 +1846,20 @@ Procedure _processBlocks(*psV.VECVI)
   
 EndProcedure
 
-Procedure _process(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piRealPage.i)
+Procedure _process(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piRealPage.i)
 ; ----------------------------------------
 ; internal   :: processes drawing of all VecVi stuff to the specified output.
 ; param      :: psV - VecVi structure
 ;               piOutput   - output type
-;                            #OUTPUT_CANVAS:  output to PB's CanvasGadget()
-;                            #OUTPUT_IMAGE:   output to an image object
-;                            #OUTPUT_WINDOW:  direct output to a window
-;                            #OUTPUT_PRINTER: send output to a printer using PB Printer lib
-;                            #OUTPUT_SVG:     output to a .svg file
-;                            #OUTPUT_PDF:     output to a .pdf file
-;               piObject   - output gadget or output window 
+;                            #OUTPUT_CANVAS:      output to PB's CanvasGadget()
+;                            #OUTPUT_CANVASIMAGE: output to an image object which is loaded into a CanvasGadget()
+;                            #OUTPUT_IMAGE:       output to an image object
+;                            #OUTPUT_WINDOW:      direct output to a window
+;                            #OUTPUT_PRINTER:     send output to a printer using PB Printer lib
+;                            #OUTPUT_SVG:         output to a .svg file
+;                            #OUTPUT_PDF:         output to a .pdf file
+;               piObject1  - first output gadget, window or image
+;               piObject2  - second output image for piOutput = #OUTPUT_CANVASIMAGE
 ;               pzPath     - full output path for .svg and .pdf outputs
 ;               piRealPage - only output the specified real page
 ;                            for single-page output channels
@@ -1866,13 +1874,16 @@ Procedure _process(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piRealPage.i)
   ; //  
   *psV\iOutput = piOutput
   If piOutput = #OUTPUT_CANVAS
-    iOutput = CanvasVectorOutput(piObject, #PB_Unit_Millimeter)
+    iOutput = CanvasVectorOutput(piObject1, #PB_Unit_Millimeter)
+    *psV\iOnlyRealPage = piRealPage
+  ElseIf piOutput = #OUTPUT_CANVASIMAGE
+    iOutput = ImageVectorOutput(piObject2, #PB_Unit_Millimeter)
     *psV\iOnlyRealPage = piRealPage
   ElseIf piOutput = #OUTPUT_IMAGE
-    iOutput = ImageVectorOutput(piObject, #PB_Unit_Millimeter)
+    iOutput = ImageVectorOutput(piObject1, #PB_Unit_Millimeter)
     *psV\iOnlyRealPage = piRealPage
   ElseIf piOutput = #OUTPUT_WINDOW
-    iOutput = WindowVectorOutput(piObject, #PB_Unit_Millimeter)
+    iOutput = WindowVectorOutput(piObject1, #PB_Unit_Millimeter)
     *psV\iOnlyRealPage = piRealPage
   ElseIf piOutput = #OUTPUT_PRINTER
     iOutput = PrinterVectorOutput(#PB_Unit_Millimeter)
@@ -1928,7 +1939,7 @@ Procedure _process(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piRealPage.i)
     ; iterate over each pagebreak
     ; //
     ForEach *psV\Pages()
-      If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
+      If *psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_CANVASIMAGE Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW
         If *psV\i("SinglePageOutput") = 0
           If *psV\iNrRealPages < *psV\iOnlyRealPage
             ; //
@@ -1947,7 +1958,7 @@ Procedure _process(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piRealPage.i)
       
       _processBlocks(*psV)
       
-      If (*psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW) And
+      If (*psV\iOutput = #OUTPUT_CANVAS Or *psV\iOutput = #OUTPUT_CANVASIMAGE Or *psV\iOutput = #OUTPUT_IMAGE Or *psV\iOutput = #OUTPUT_WINDOW) And
           *psV\iNrRealPages = *psV\iOnlyRealPage And *psV\i("SinglePageOutput") = 0
         ; //
         ; for single-page output channels, if the wanted real page is reached, finish
@@ -1957,6 +1968,15 @@ Procedure _process(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piRealPage.i)
     Next
     
     StopVectorDrawing()
+  EndIf
+  
+  ; //
+  ; if output channel is canvasimage, draw the image on the canvas gadget
+  ; //
+  If *psV\iOutput = #OUTPUT_CANVASIMAGE
+    If StartVectorDrawing(CanvasVectorOutput(piObject1, #PB_Unit_Millimeter))
+      DrawVectorImage(ImageID(piObject2))
+    EndIf
   EndIf
   
 EndProcedure
@@ -2498,6 +2518,12 @@ Procedure SetXPos(*psV.VECVI, pdX.d, piRelative = #False)
     \iType = #ELEMENTTYPE_X
     \d("X")   = pdX
     \i("Rel") = piRelative
+    
+    If \i("Rel") = #False
+      _incrementPagePosition(*psV, 0, 0, \d("X"))
+    ElseIf \i("Rel") = #True
+      _incrementPagePosition(*psV, 0, \d("X"))
+    EndIf
   EndWith
     
 EndProcedure
@@ -2534,6 +2560,12 @@ Procedure SetYPos(*psV.VECVI, pdY.d, piRelative = #False)
     \iType = #ELEMENTTYPE_Y
     \d("Y")   = pdY
     \i("Rel") = piRelative
+    
+    If \i("Rel") = #False
+      _incrementPagePosition(*psV, 1, 0, \d("Y"))
+    ElseIf \i("Rel") = #True
+      _incrementPagePosition(*psV, 1, \d("Y"))
+    EndIf
   EndWith
     
 EndProcedure
@@ -2585,16 +2617,16 @@ Procedure.d GetPageHeight(*psV.VECVI, piPage.i = 0, piNet = #True)
 ; ----------------------------------------
 
   If piNet = #True
-    piNet = #LEFT | #RIGHT
+    piNet = #TOP | #BOTTOM
   EndIf
 
   If piPage = 0
-    ProcedureReturn _calcPageHeight(*psV, #TOP | #BOTTOM, 0, 1)
+    ProcedureReturn _calcPageHeight(*psV, piNet, 0, 1)
   Else
     PushListPosition(*psV\Pages())
     ForEach *psV\Pages()
       If *psV\Pages()\iNr = piPage
-        ProcedureReturn _calcPageHeight(*psV, #TOP | #BOTTOM, 0, 1)
+        ProcedureReturn _calcPageHeight(*psV, piNet, 0, 1)
       EndIf
     Next
     PopListPosition(*psV\Pages())
@@ -3472,6 +3504,7 @@ Procedure Sp(*psV.VECVI, pdSp.d = -1)
     
     If pdSp > -1
       _incrementPagePosition(*psV, 0, pdSp)
+      *psV\d("LastSp") = pdSp
     Else
       _incrementPagePosition(*psV, 0, *psV\d("LastSp"))
     EndIf
@@ -3614,7 +3647,22 @@ Procedure OutputCanvas(*psV.VECVI, piGadget.i, piRealPage.i = 1)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _process(*psV, #OUTPUT_CANVAS, piGadget, "", piRealPage)
+  _process(*psV, #OUTPUT_CANVAS, piGadget, -1, "", piRealPage)
+  
+EndProcedure
+
+Procedure OutputCanvasImage(*psV.VECVI, piGadget.i, piImage.i, piRealPage.i = 1)
+; ----------------------------------------
+; public     :: outputs VecVi on a canvas gadget using an image.
+; param      :: *psV       - VecVi structure
+;               piGadget   - canvas gadget ID
+;               piImage    - image ID
+;               piRealPage - real page to show on the canvas
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+  
+  _process(*psV, #OUTPUT_CANVASIMAGE, piGadget, piImage, "", piRealPage)
   
 EndProcedure
 
@@ -3628,7 +3676,7 @@ Procedure OutputImage(*psV.VECVI, piImage.i, piRealPage.i = 1)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _process(*psV, #OUTPUT_IMAGE, piImage, "", piRealPage)
+  _process(*psV, #OUTPUT_IMAGE, piImage, -1, "", piRealPage)
   
 EndProcedure
 
@@ -3642,7 +3690,7 @@ Procedure OutputWindow(*psV.VECVI, piWindow.i, piRealPage.i = 1)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _process(*psV, #OUTPUT_WINDOW, piWindow, "", piRealPage)
+  _process(*psV, #OUTPUT_WINDOW, piWindow, -1, "", piRealPage)
   
 EndProcedure
 
@@ -3654,7 +3702,7 @@ Procedure OutputPrinter(*psV.VECVI)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _process(*psV, #OUTPUT_PRINTER, -1, "", 0)
+  _process(*psV, #OUTPUT_PRINTER, -1, -1, "", 0)
   
 EndProcedure
 
@@ -3667,7 +3715,7 @@ Procedure OutputSVG(*psV.VECVI, pzPath.s)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _process(*psV, #OUTPUT_SVG, -1, pzPath, 0)
+  _process(*psV, #OUTPUT_SVG, -1, -1, pzPath, 0)
   
 EndProcedure
 
@@ -3680,7 +3728,7 @@ Procedure OutputPDF(*psV.VECVI, pzPath.s)
 ; remarks    :: 
 ; ----------------------------------------
 
-  _process(*psV, #OUTPUT_PDF, -1, pzPath, 0)
+  _process(*psV, #OUTPUT_PDF, -1, -1, pzPath, 0)
   
 EndProcedure
 
