@@ -1975,7 +1975,10 @@ Procedure _process(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, p
   ; //
   If *psV\iOutput = #OUTPUT_CANVASIMAGE
     If StartVectorDrawing(CanvasVectorOutput(piObject1, #PB_Unit_Millimeter))
+      VectorSourceColor(RGBA(125, 125, 125, 255))
+      FillVectorOutput()
       DrawVectorImage(ImageID(piObject2))
+      StopVectorDrawing()
     EndIf
   EndIf
   
