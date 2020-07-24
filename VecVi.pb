@@ -2,7 +2,7 @@
 ; ################ VECVI (VectorView) MODULE ################
 ; ###########################################################
 
-;   written by Andesdaf/hgzh, 2017-2019
+;   written by Andesdaf/hgzh, 2017-2020
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
@@ -11,7 +11,7 @@
 
 ; ###########################################################
 ;                          LICENSING
-; Copyright (c) 2017-2019 Andesdaf/hgzh
+; Copyright (c) 2017-2020 Andesdaf/hgzh
 
 ; Permission is hereby granted, free of charge, to any person
 ; obtaining a copy of this software and associated
