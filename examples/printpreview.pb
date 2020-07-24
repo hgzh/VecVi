@@ -1,8 +1,9 @@
-﻿XIncludeFile "../VecVi.pb"
+﻿XIncludeFile "../VecVi2.pb"
 
 Global *VecVi
 Global.i iCurPage,
-         iMaxPage
+         iMaxPage,
+         iImage
 Global.d dRes
 
 UsePNGImageEncoder()
@@ -41,7 +42,7 @@ Procedure createVecVi()
   VecVi::BeginHeader(*VecVi)
   Vecvi::SetMargin(*VecVi, Vecvi::#BOTTOM, 3, VecVi::#AREA_HEADER, #True)
   VecVi::SetLineStyle(*VecVi, VecVi::#LINESTYLE_DASH | VecVi::#LINESTYLE_SQUAREEND, 5)
-  VecVi::TextCell(*VecVi, 0, 5, "VecVi Test", VecVi::#RIGHT, VecVi::#BOTTOM)
+  VecVi::TextCell(*VecVi, 100, 5, "VecVi Test", VecVi::#RIGHT, VecVi::#BOTTOM)
   VecVi::SetFont(*VecVi, "Arial", #PB_Font_Italic, 3)
   VecVi::TextCell(*VecVi, 0, 5, "Date: " + FormatDate("%yyyy-%mm-%dd", Date()), VecVi::#BOTTOM, VecVi::#BOTTOM, VecVi::#RIGHT, VecVi::#BOTTOM)
   VecVi::SetLineStyle(*VecVi, VecVi::#LINESTYLE_STROKE)
@@ -58,7 +59,7 @@ Procedure createVecVi()
   ; //
   ; create the first page with the first block
   ; //
-  VecVi::BeginPage(*VecVi)
+  VecVi::BeginSection(*VecVi)
   VecVi::BeginBlock(*VecVi)
     
   VecVi::SetFont(*VecVi, "Arial", 0, 4)
@@ -127,7 +128,7 @@ Procedure createVecVi()
   ; //
   ; create a page without numbering
   ; //
-  VecVi::BeginPage(*VecVi, VecVi::#FORMAT_INHERIT, VecVi::#INHERIT, -1)
+  VecVi::BeginSection(*VecVi, VecVi::#FORMAT_INHERIT, VecVi::#INHERIT, -1)
   Vecvi::BeginBlock(*VecVi)
   Vecvi::SetFont(*VecVi, "Arial", 0, 4)  
   VecVi::TextCell(*VecVi, 0, 5, "On this page, there will be no page breaks within a table.", VecVi::#BOTTOM)
@@ -157,7 +158,7 @@ Procedure createVecVi()
   ; //
   ; define the next page
   ; //
-  VecVi::BeginPage(*VecVi)
+  VecVi::BeginSection(*VecVi)
   VecVi::BeginBlock(*VecVi)
   VecVi::SetFont(*VecVi, "Arial", 0, 4)
   VecVi::TextCell(*VecVi, 0, 5, "This page is numbered again.", VecVi::#BOTTOM)
@@ -182,6 +183,55 @@ Procedure createVecVi()
     VecVi::Sector(*VecVi, 20, 15, Random(120, 0), Random(360, 180), VecVi::#RIGHT, Random(1, 0), Random(1, 0), Random(1, 0))
   Next
   
+  VecVi::Ln(*VecVi)
+  
+  For i = 0 To 60
+    If Mod(i, 10) = 0
+      VecVi::BeginBlock(*VecVi)
+    EndIf
+    VecVi::TextCell(*VecVi, 0, 5, "Nr. " + Str(i), VecVi::#NEWLINE)
+  Next i
+  
+EndProcedure
+
+Procedure createVecVi2()
+  Protected.i i
+
+  *VecVi = VecVi::Create(VecVi::#FORMAT_A4, VecVi::#VERTICAL)
+
+  ; //
+  ; define a page header
+  ; //
+  VecVi::BeginHeader(*VecVi)
+  Vecvi::SetMargin(*VecVi, Vecvi::#BOTTOM, 3, VecVi::#AREA_HEADER, #True)
+  VecVi::SetLineStyle(*VecVi, VecVi::#LINESTYLE_DASH | VecVi::#LINESTYLE_SQUAREEND, 5)
+  VecVi::TextCell(*VecVi, 100, 5, "VecVi Test", VecVi::#RIGHT, VecVi::#BOTTOM)
+  VecVi::SetFont(*VecVi, "Arial", #PB_Font_Italic, 3)
+  VecVi::TextCell(*VecVi, 0, 5, "Date: " + FormatDate("%yyyy-%mm-%dd", Date()), VecVi::#BOTTOM, VecVi::#BOTTOM, VecVi::#RIGHT, VecVi::#BOTTOM)
+  VecVi::SetLineStyle(*VecVi, VecVi::#LINESTYLE_STROKE)
+
+  ; //
+  ; define a page footer
+  ; //
+  VecVi::SetMargin(*VecVi, VecVi::#TOP, 3, VecVi::#AREA_FOOTER, #True)
+  VecVi::BeginFooter(*VecVi)
+  VecVi::HorizontalLine(*VecVi, 100, Vecvi::#CENTER)
+  VecVi::Ln(*VecVi, 5)
+  VecVi::TextCell(*VecVi, 0, 5, "Page {Nb} of {NbTotal}", VecVi::#BOTTOM, #False, VecVi::#CENTER)
+
+  ; //
+  ; create the first page with the first block
+  ; //
+  VecVi::BeginSection(*VecVi)
+  VecVi::BeginBlock(*VecVi, #True)
+  VecVi::SetFont(*VecVi, "Arial", 0, 5)
+  For i = 0 To 800
+    If Mod(i, 10) = 0
+      VecVi::BeginBlock(*VecVi)
+    EndIf
+    VecVi::TextCell(*VecVi, 0, 5, "Nr. " + Str(i), VecVi::#NEWLINE)
+  Next i
+
 EndProcedure
 
 Procedure move()
@@ -234,13 +284,13 @@ Procedure move()
     VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, dOffTop)
     VecVi::SetOutputOffset(*VecVi, VecVi::#LEFT, dOffLeft)
     VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
-    
+        
     If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 0
-      If -dOffTop > -VecVi::GetRealPageStartOffset(*VecVi, iCurPage + 1) And iCurPage < iMaxPage
+      If -dOffTop > -VecVi::GetPageStartOffset(*VecVi, iCurPage + 1) And iCurPage < iMaxPage
         iCurPage + 1
       EndIf
       
-      If -dOffTop < -VecVi::GetRealPageStartOffset(*VecVi, iCurPage - 1) And iCurPage > 1
+      If -dOffTop < -VecVi::GetPageStartOffset(*VecVi, iCurPage - 1) And iCurPage > 1
         iCurPage - 1
       EndIf
     EndIf
@@ -266,14 +316,15 @@ Procedure zoom()
 EndProcedure
 
 Procedure printDocument()
-
+  Protected.s zFile
+  
   If Not PrintRequester()
-    ProcedureReturn 
+;     zFile = OpenFileRequester("PDF-Ausgabe", GetTemporaryDirectory(), "PDF;*.pdf", 0)
+;     VecVi::OutputPbPDF(*VecVi, zFile + ".pdf")
+;     RunProgram(zFile + ".pdf")
+    ProcedureReturn 1
   EndIf
   If StartPrinting("Test")
-    VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, 0)
-    VecVi::SetOutputOffset(*VecVi, VecVi::#LEFT, 0)
-    VecVi::SetOutputScale(*VecVi, 1, 1)
     VecVi::OutputPrinter(*VecVi)
     StopPrinting()
   EndIf
@@ -283,9 +334,9 @@ EndProcedure
 Procedure switchOutputMode()
   
   If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
-    VecVi::SetSinglePageOutput(*VecVi, 0, 0)
+    VecVi::SetMultiPageOutput(*VecVi, 0, 0)
   Else
-    VecVi::SetSinglePageOutput(*VecVi, VecVi::#VERTICAL, 10)
+    VecVi::SetMultiPageOutput(*VecVi, VecVi::#VERTICAL, 10)
     iCurPage = 1
   EndIf
   VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
@@ -311,7 +362,7 @@ Procedure stepPage()
       If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
         VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
       Else
-        VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, VecVi::GetRealPageStartOffset(*VecVi, iCurPage))
+        VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, VecVi::GetPageStartOffset(*VecVi, iCurPage))
         VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
       EndIf
     EndIf
@@ -321,7 +372,7 @@ Procedure stepPage()
       If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
         VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
       Else
-        VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, VecVi::GetRealPageStartOffset(*VecVi, iCurPage))      
+        VecVi::SetOutputOffset(*VecVi, VecVi::#TOP, VecVi::GetPageStartOffset(*VecVi, iCurPage))      
         VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
       EndIf
     EndIf
@@ -334,6 +385,7 @@ Procedure main()
   Protected.i i,
               iDialog,
               iEvent
+  Protected.d dDpi
   
   zXML = "<window name='WIN_MAIN' id='WIN_MAIN' text='VecVi Preview Window' flags='#PB_Window_SystemMenu | #PB_Window_ScreenCentered | #PB_Window_SizeGadget | #PB_Window_MaximizeGadget | #PB_Window_MinimizeGadget'>"
   zXML + "  <gridbox columns='1' rowexpand='item:2'>"
@@ -357,12 +409,13 @@ Procedure main()
     ToolBarStandardButton(#TBB_PAGEN, #PB_ToolBarIcon_Redo, #PB_ToolBar_Normal, "Next Page")
   EndIf
   
-  dRes = VecVi::GetCanvasOutputResolution(#CNV_PREVIEW) / 25.4
-    
+  dRes = VecVi::GetCanvasOutputResolution(#CNV_PREVIEW) * 0.05
+  
+  dDpi = GetDeviceCaps_(GetDC_(0), #LOGPIXELSX)
+ 
   createVecVi()
   
-  iMaxPage = VecVi::GetRealPageCount(*VecVi)
-  iCurPage = 1
+  VecVi::Process(*VecVi)
   
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_MouseWheel)
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_LeftButtonDown)
@@ -379,8 +432,10 @@ Procedure main()
   
   BindEvent(#PB_Event_SizeWindow, @simpleRedraw(), #WIN_MAIN)
   
-  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)
-    
+  iCurPage = 1
+  iMaxPage = VecVi::GetPageCount(*VecVi)
+  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, iCurPage)  
+  
   Repeat
     iEvent = WaitWindowEvent()
     
