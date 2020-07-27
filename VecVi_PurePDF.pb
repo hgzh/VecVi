@@ -556,9 +556,9 @@ Procedure.d _calcPageWidth(*psV.VECVI, piMargins.i = #LEFT | #RIGHT, piGetMargin
     ; //
     ; get page width
     ; //
-    If *psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21
+    If (*psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21) And ListIndex(*psV\Sections()) > -1
       dWidth = *psV\Sections()\Size\dWidth
-    ElseIf *psV\iDefTarget = 1 Or *psV\iDefTarget = 2
+    Else
       dWidth = *psV\Size\dWidth
     EndIf
     
@@ -566,9 +566,9 @@ Procedure.d _calcPageWidth(*psV.VECVI, piMargins.i = #LEFT | #RIGHT, piGetMargin
     ; left margin
     ; //
     If piMargins & #LEFT
-      If *psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21
+      If (*psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21) And ListIndex(*psV\Sections()) > -1
         dWidth - *psV\Sections()\Margin\dLeft
-      ElseIf *psV\iDefTarget = 1 Or *psV\iDefTarget = 2
+      Else
         dWidth - *psV\Margin\dLeft
       EndIf
       
@@ -587,9 +587,9 @@ Procedure.d _calcPageWidth(*psV.VECVI, piMargins.i = #LEFT | #RIGHT, piGetMargin
     ; right margin
     ; //
     If piMargins & #RIGHT
-      If *psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21
+      If (*psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21) And ListIndex(*psV\Sections()) > -1
         dWidth - *psV\Sections()\Margin\dRight
-      ElseIf *psV\iDefTarget = 1 Or *psV\iDefTarget = 2
+      Else
         dWidth - *psV\Margin\dRight
       EndIf
       
@@ -613,9 +613,9 @@ Procedure.d _calcPageWidth(*psV.VECVI, piMargins.i = #LEFT | #RIGHT, piGetMargin
     ; left margin
     ; //
     If piMargins & #LEFT
-      If *psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21
+      If (*psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21) And ListIndex(*psV\Sections()) > -1
         dWidth + *psV\Sections()\Margin\dLeft
-      ElseIf *psV\iDefTarget = 1 Or *psV\iDefTarget = 2
+      Else
         dWidth + *psV\Margin\dLeft
       EndIf
       
@@ -634,9 +634,9 @@ Procedure.d _calcPageWidth(*psV.VECVI, piMargins.i = #LEFT | #RIGHT, piGetMargin
     ; right margin
     ; //
     If piMargins & #RIGHT
-      If *psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21
+      If (*psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21) And ListIndex(*psV\Sections()) > -1
         dWidth + *psV\Sections()\Margin\dRight
-      ElseIf *psV\iDefTarget = 1 Or *psV\iDefTarget = 2
+      Else
         dWidth + *psV\Margin\dRight
       EndIf
 
@@ -676,9 +676,9 @@ Procedure.d _calcPageHeight(*psV.VECVI, piMargins = #TOP | #BOTTOM, piGetMargins
     ; //
     ; get page height
     ; //
-    If *psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21
+    If (*psV\iDefTarget = 0 Or *psV\iDefTarget = 11 Or *psV\iDefTarget = 21) And ListIndex(*psV\Sections()) > -1
       dHeight = *psV\Sections()\Size\dHeight
-    ElseIf *psV\iDefTarget = 1 Or *psV\iDefTarget = 2
+    Else
       dHeight = *psV\Size\dHeight
     EndIf
     
@@ -1817,7 +1817,7 @@ Procedure _drawHorizontalLine(*psV.VECVI, *psT.VECVI_BLOCK)
     dPosY = _getElementPosition(*psV, *psT, 1)
     
     If \d("W") = 0
-      \d("W") = _calcPageWidth(*psV) - dPosX
+      \d("W") = _calcPageWidth(*psV, VecVi::#RIGHT) - *psT\Elements()\PagePos\dX
     EndIf
     
     ; //
@@ -1873,7 +1873,7 @@ Procedure _drawVerticalLine(*psV.VECVI, *psT.VECVI_BLOCK)
     dPosY = _getElementPosition(*psV, *psT, 1)
     
     If \d("H") = 0
-      \d("H") = _calcPageHeight(*psV, #BOTTOM) - dPosY
+      \d("H") = _calcPageHeight(*psV, #BOTTOM) - *psT\Elements()\PagePos\dY
     EndIf
     
     ; //
