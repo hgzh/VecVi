@@ -3,7 +3,7 @@
 ; ################  WITH pbPDF INTEGRATION   ################
 ; ###########################################################
 
-;   written by Andesdaf/hgzh, 2020
+;   written by Andesdaf/hgzh, 2020-2022
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
@@ -12,7 +12,7 @@
 
 ; ###########################################################
 ;                          LICENSING
-; Copyright (c) 2020 Andesdaf/hgzh
+; Copyright (c) 2020-2022 Andesdaf/hgzh
 
 ; Permission is hereby granted, free of charge, to any person
 ; obtaining a copy of this software and associated
@@ -41,6 +41,8 @@
 ;
 ;   v.ppdf.1.00 (2020-07-24)
 ;    - first version
+;   v.ppdf.1.01 (2022-10-11)
+;    - aligned with VecVi v.1.11
 ; ###########################################################
 
 EnableExplicit
@@ -350,7 +352,7 @@ Module VecVi
 EnableExplicit
 
 Declare _process(*psV.VECVI)
-Declare _processNewPage(*psV.VECVI)
+Declare _processNewPage(*psV.VECVI, pdRestoreX.d = 0)
 Declare _processEndPage(*psV.VECVI)
 Declare _drawElements(*psV.VECVI, piStartPageRef.i, piE.i = 0)
 
@@ -2834,7 +2836,7 @@ Procedure _processBlock(*psV.VECVI, piTarget)
         ; //
         If *psV\CurrPagePos\dY + \Size\dHeight > _calcPageHeight(*psV, #BOTTOM)
           _processEndPage(*psV)
-          _processNewPage(*psV)
+          _processNewPage(*psV, *Target\Elements()\BlockPos\dX)
         EndIf
         
         iIndex = ListIndex(*Target\Elements())
@@ -2888,10 +2890,11 @@ Procedure _processBlock(*psV.VECVI, piTarget)
   
 EndProcedure
 
-Procedure _processNewPage(*psV.VECVI)
+Procedure _processNewPage(*psV.VECVI, pdRestoreX.d = 0)
 ; ----------------------------------------
 ; internal   :: processes a page break
-; param      :: *psV     - VecVi structure
+; param      :: *psV       - VecVi structure
+;               pdRestoreX - Restore x position retrieved from last element before page break
 ; returns    :: (nothing)
 ; remarks    :: 
 ; ----------------------------------------
@@ -2995,7 +2998,7 @@ Procedure _processNewPage(*psV.VECVI)
   ; set the x coordinates to the page root values
   ; //
   dOldPagePos = *psV\CurrPagePos\dX
-  *psV\CurrPagePos\dX = *psV\Sections()\Margin\dLeft
+  *psV\CurrPagePos\dX = *psV\Sections()\Margin\dLeft + pdRestoreX
   *psV\CurrGlobPos\dX + (*psV\CurrPagePos\dX - dOldPagePos)
 
   ; //
