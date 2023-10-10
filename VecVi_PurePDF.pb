@@ -3,7 +3,7 @@
 ; ################ WITH PUREPDF2 INTEGRATION ################
 ; ###########################################################
 
-;   written by Andesdaf/hgzh, 2018-2022
+;   written by Andesdaf/hgzh, 2018-2023
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
@@ -12,7 +12,7 @@
 
 ; ###########################################################
 ;                          LICENSING
-; Copyright (c) 2018-2022 Andesdaf/hgzh
+; Copyright (c) 2018-2023 Andesdaf/hgzh
 
 ; Permission is hereby granted, free of charge, to any person
 ; obtaining a copy of this software and associated
@@ -58,6 +58,8 @@
 ;    - fixed bugs with image inclusion
 ;   v.ppdf.1.05 (2022-10-11)
 ;    - aligned with VecVi v.1.11
+;   v.ppdf.1.06 (2023-10-10)
+;    - aligned with VecVi v.1.12
 ; ###########################################################
 
 EnableExplicit
@@ -2415,6 +2417,7 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPa
   Protected.i iOutput,
               iOldPageRef,
               i,
+              iFail,
               iRes
   Protected   siS.Integer
   Protected   siB.Integer
@@ -2544,8 +2547,28 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPa
     ; //
     ; pre-select the very first element
     ; //
-    FirstElement(*psV\Sections())
-    FirstElement(*psV\Sections()\Blocks())
+    iFail = 0
+    If FirstElement(*psV\Sections()) = #Null
+      iFail = 1
+    Else
+      While FirstElement(*psV\Sections()\Blocks()) = #Null
+        If NextElement(*psV\Sections()) = #Null
+          iFail = 1
+          Break
+        EndIf
+      Wend
+    EndIf
+    
+    If iFail = 1
+      ; //
+      ; stop drawing
+      ; //
+      If *psV\iOutput <> #OUTPUT_PUREPDF
+        StopVectorDrawing()
+      EndIf
+      ProcedureReturn
+    EndIf
+    
     FirstElement(*psV\Sections()\Pages())
 
     iOldPageRef = -1

@@ -2,7 +2,7 @@
 ; ################ VECVI (VectorView) MODULE ################
 ; ###########################################################
 
-;   written by Andesdaf/hgzh, 2017-2022
+;   written by Andesdaf/hgzh, 2017-2023
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
@@ -11,7 +11,7 @@
 
 ; ###########################################################
 ;                          LICENSING
-; Copyright (c) 2017-2022 Andesdaf/hgzh
+; Copyright (c) 2017-2023 Andesdaf/hgzh
 
 ; Permission is hereby granted, free of charge, to any person
 ; obtaining a copy of this software and associated
@@ -90,6 +90,8 @@
 ;    - drawing of bigger documents is now much faster
 ;   v.1.11 (2022-10-11)
 ;    - fixed bug with pagebreak and x position reset
+;   v.1.12 (2023-10-10)
+;    - fixed bug causing crash when section is empty
 ; ###########################################################
 
 EnableExplicit
@@ -2096,6 +2098,7 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPa
   Protected.i iOutput,
               iOldPageRef,
               i,
+              iFail,
               iRes
   Protected   siS.Integer
   Protected   siB.Integer
@@ -2203,8 +2206,26 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPa
     ; //
     ; pre-select the very first element
     ; //
-    FirstElement(*psV\Sections())
-    FirstElement(*psV\Sections()\Blocks())
+    iFail = 0
+    If FirstElement(*psV\Sections()) = #Null
+      iFail = 1
+    Else
+      While FirstElement(*psV\Sections()\Blocks()) = #Null
+        If NextElement(*psV\Sections()) = #Null
+          iFail = 1
+          Break
+        EndIf
+      Wend
+    EndIf
+    
+    If iFail = 1
+      ; //
+      ; stop drawing
+      ; //
+      StopVectorDrawing()
+      ProcedureReturn
+    EndIf
+    
     FirstElement(*psV\Sections()\Pages())
 
     iOldPageRef = -1
