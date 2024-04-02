@@ -2,7 +2,7 @@
 ; ################ VECVI (VectorView) MODULE ################
 ; ###########################################################
 
-;   written by Andesdaf/hgzh, 2017-2023
+;   written by Andesdaf/hgzh, 2017-2024
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
@@ -11,7 +11,7 @@
 
 ; ###########################################################
 ;                          LICENSING
-; Copyright (c) 2017-2023 Andesdaf/hgzh
+; Copyright (c) 2017-2024 Andesdaf/hgzh
 
 ; Permission is hereby granted, free of charge, to any person
 ; obtaining a copy of this software and associated
@@ -92,6 +92,15 @@
 ;    - fixed bug with pagebreak and x position reset
 ;   v.1.12 (2023-10-10)
 ;    - fixed bug causing crash when section is empty
+;   v.1.13 (2024-04-02)
+;    - added DuplicateSection(), DuplicateBlock()
+;    - added OutputPDF()/OutputSVG() support for all OS
+;    - changed OutputSVG() to require a page for output
+;    - changed BeginSection() and BeginBlock() to return a handle
+;      of the created section or block
+;    - fixed bugs with OutputPDF() and OutputSVG()
+;    - fixed another bug causing crash if section is empty
+;    - removed CanvasImage output
 ; ###########################################################
 
 EnableExplicit
@@ -329,8 +338,8 @@ EndStructure
   Declare.i Create(pzFormat.s, piOrientation.i)
   Declare   Process(*psV.VECVI)
   Declare   Free(*psV.VECVI)
-  Declare   BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = #INHERIT, piNumbering = 0)
-  Declare   BeginBlock(*psV.VECVI, piPageBreak.i = #True)
+  Declare.i BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = #INHERIT, piNumbering = 0)
+  Declare.i BeginBlock(*psV.VECVI, piPageBreak.i = #True)
   Declare   BeginHeader(*psV.VECVI)
   Declare   BeginFooter(*psV.VECVI)
   Declare.i GetFillColor(*psV.VECVI)
@@ -383,11 +392,10 @@ EndStructure
   Declare   Rectangle(*psV.VECVI, pdW.d, pdH.d, piLn.i = #RIGHT, piBorder.i = #False, piFill.i = #False)
   Declare   Sector(*psV.VECVI, pdW.d, pdH.d, pdStart.d, pdEnd.d, piLn.i = #RIGHT, piBorder.i = #False, piConnect.i = #True, piFill.i = #False)
   Declare   OutputCanvas(*psV.VECVI, piGadget.i, piPage.i = 1)
-  Declare   OutputCanvasImage(*psV.VECVI, piGadget.i, piImage.i, piPage.i = 1)
   Declare   OutputImage(*psV.VECVI, piImage.i, piPage.i = 1)
   Declare   OutputWindow(*psV.VECVI, piWindow.i, piPage.i = 1)
   Declare   OutputPrinter(*psV.VECVI)
-  Declare   OutputSVG(*psV.VECVI, pzPath.s)
+  Declare   OutputSVG(*psV.VECVI, pzPath.s, piPage.i = 1)
   Declare   OutputPDF(*psV.VECVI, pzPath.s)
     
 EndDeclareModule
@@ -405,7 +413,6 @@ Enumeration Output
   ; internal   :: possible output types
   ; ----------------------------------------
   #OUTPUT_CANVAS
-  #OUTPUT_CANVASIMAGE
   #OUTPUT_IMAGE
   #OUTPUT_WINDOW
   #OUTPUT_PRINTER
@@ -2075,20 +2082,18 @@ Procedure.i _drawElements(*psV.VECVI, piStartPageRef.i, piE.i = 0)
   
 EndProcedure
 
-Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPage.i)
+Procedure _draw(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piPage.i)
 ; ----------------------------------------
 ; internal   :: output of all VecVi stuff to the specified output channel.
 ; param      :: psV - VecVi structure
 ;               piOutput   - output type
 ;                            #OUTPUT_CANVAS:      output to PB's CanvasGadget()
-;                            #OUTPUT_CANVASIMAGE: output to an image object which is loaded into a CanvasGadget()
 ;                            #OUTPUT_IMAGE:       output to an image object
 ;                            #OUTPUT_WINDOW:      direct output to a window
 ;                            #OUTPUT_PRINTER:     send output to a printer using PB Printer lib
 ;                            #OUTPUT_SVG:         output to a .svg file
 ;                            #OUTPUT_PDF:         output to a .pdf file
-;               piObject1  - first output gadget, window or image
-;               piObject2  - second output image for piOutput = #OUTPUT_CANVASIMAGE
+;               piObject   - first output gadget, window or image
 ;               pzPath     - full output path for .svg and .pdf outputs
 ;               piPage     - only output the specified page
 ;                            for single-page output channels
@@ -2110,40 +2115,29 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPa
   ; //  
   *psV\iOutput = piOutput
   If piOutput = #OUTPUT_CANVAS
-    iOutput = CanvasVectorOutput(piObject1, #PB_Unit_Millimeter)
-    *psV\iOnlyPage = piPage
-  ElseIf piOutput = #OUTPUT_CANVASIMAGE
-    iOutput = ImageVectorOutput(piObject2, #PB_Unit_Millimeter)
+    iOutput = CanvasVectorOutput(piObject, #PB_Unit_Millimeter)
     *psV\iOnlyPage = piPage
   ElseIf piOutput = #OUTPUT_IMAGE
-    iOutput = ImageVectorOutput(piObject1, #PB_Unit_Millimeter)
+    iOutput = ImageVectorOutput(piObject, #PB_Unit_Millimeter)
     *psV\iOnlyPage = piPage
   ElseIf piOutput = #OUTPUT_WINDOW
-    iOutput = WindowVectorOutput(piObject1, #PB_Unit_Millimeter)
+    iOutput = WindowVectorOutput(piObject, #PB_Unit_Millimeter)
     *psV\iOnlyPage = piPage
   ElseIf piOutput = #OUTPUT_PRINTER
     iOutput = PrinterVectorOutput(#PB_Unit_Millimeter)
     *psV\iOnlyPage = -1
   ElseIf piOutput = #OUTPUT_SVG
-    CompilerIf #PB_Compiler_OS = #PB_OS_Linux
-      iOutput = SvgVectorOutput(pzPath, *psV\Sizes\dWidth, *psV\Sizes\dHeight, #PB_Unit_Millimeter)
-    CompilerElse
-      DebuggerError("SvgVectorOutput only supported on Linux.")
-    CompilerEndIf
-    *psV\iOnlyPage = -1
+    iOutput = SvgVectorOutput(pzPath, *psV\Size\dWidth, *psV\Size\dHeight, #PB_Unit_Millimeter)
+    *psV\iOnlyPage = piPage
   ElseIf piOutput = #OUTPUT_PDF
-    CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-      DebuggerError("PdfVectorOutput not supported on Windows.")
-    CompilerElse
-      iOutput = PdfVectorOutput(pzPath, *psV\Sizes\dWidth, *psV\Sizes\dHeight, #PB_Unit_Millimeter)
-    CompilerEndIf
+    iOutput = PdfVectorOutput(pzPath, *psV\Size\dWidth, *psV\Size\dHeight, #PB_Unit_Millimeter)
     *psV\iOnlyPage = -1
   EndIf
   
   ; //
   ; determine drawing mode
   ; //
-  If *psV\iOutput = #OUTPUT_PRINTER Or *psV\iOutput = #OUTPUT_PDF Or *psV\iOutput = #OUTPUT_SVG
+  If *psV\iOutput = #OUTPUT_PRINTER Or *psV\iOutput = #OUTPUT_PDF
     *psV\iDrawMode = #DRAW_PAGED
   Else
     If *psV\i("MultiPageOutput") = #False
@@ -2303,7 +2297,9 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPa
       ; //
       If i > 0
         ResetList(*psV\Sections()\Pages())
-        FirstElement(*psV\Sections()\Blocks())
+        If FirstElement(*psV\Sections()\Blocks()) = #Null
+          Continue
+        EndIf
       EndIf
       
       ; //
@@ -2397,18 +2393,6 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject1.i, piObject2.i, pzPath.s, piPa
     ; stop drawing
     ; //
     StopVectorDrawing()
-  EndIf
-  
-  ; //
-  ; if output channel is canvasimage, draw the image on the canvas gadget
-  ; //
-  If *psV\iOutput = #OUTPUT_CANVASIMAGE
-    If StartVectorDrawing(CanvasVectorOutput(piObject1, #PB_Unit_Millimeter))
-      VectorSourceColor(RGBA(125, 125, 125, 255))
-      FillVectorOutput()
-      DrawVectorImage(ImageID(piObject2))
-      StopVectorDrawing()
-    EndIf
   EndIf
   
 EndProcedure
@@ -2969,7 +2953,7 @@ EndProcedure
 
 ;- >>> area definition <<<
 
-Procedure BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = #INHERIT, piNumbering = 0)
+Procedure.i BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = #INHERIT, piNumbering = 0)
 ; ----------------------------------------
 ; public     :: starts a new section on the current VecVi structure.
 ; param      :: *psV          - VecVi structure
@@ -2983,7 +2967,7 @@ Procedure BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i
 ;                               -1: no page numbering
 ;                                0: resume page numbering from previous section
 ;                               >0: start value for page numbering in this section
-; returns    :: (nothing)
+; returns    :: pointer to the new section element
 ; remarks    :: 
 ; ----------------------------------------
   Protected.d dOldPagePos
@@ -3067,16 +3051,18 @@ Procedure BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i
   
   *psV\iNrSections + 1
   
+  ProcedureReturn @*psV\Sections()
+  
 EndProcedure
 
-Procedure BeginBlock(*psV.VECVI, piPageBreak.i = #True)
+Procedure.i BeginBlock(*psV.VECVI, piPageBreak.i = #True)
 ; ----------------------------------------
 ; public     :: starts a new element block on the current section.
 ; param      :: *psV        - VecVi structure
 ;               piPageBreak - (S: #True) wheter to accept page breaks within this block
 ;                             #True:  accept page breaks
 ;                             #False: disallow page breaks
-; returns    :: (nothing)
+; returns    :: pointer to the new block element
 ; remarks    :: 
 ; ----------------------------------------
   Protected.d dOldPagePos
@@ -3099,6 +3085,8 @@ Procedure BeginBlock(*psV.VECVI, piPageBreak.i = #True)
   *psV\CurrGlobPos\dX + (*psV\CurrPagePos\dX - dOldPagePos)
   
   *psV\Sections()\Blocks()\DrawPos = *psV\CurrGlobPos
+  
+  ProcedureReturn @*psV\Sections()\Blocks()
   
 EndProcedure
 
@@ -4092,6 +4080,86 @@ Procedure SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
   
 EndProcedure
 
+;- >>> content manipulation <<<
+
+Procedure.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *psRelative.VECVI_BLOCK = #Null)
+; ----------------------------------------
+; public     :: duplicates the given block.
+; param      :: *psV        - VecVi structure
+;               *psBlock    - VecVi block to duplicate
+;               piPos       - (S: #RIGHT) where to add the new block
+;                             #TOP:    add as first block
+;                             #BOTTOM: add as last block
+;                             #LEFT:   add before current block
+;                             #RIGHT:  add after current block
+;               *psRelative - piPos relative to block
+;                             if not given, position is determined from *psBlock
+; returns    :: pointer to the new block element
+; remarks    :: 
+; ----------------------------------------
+  Protected *sNew.VECVI_BLOCK
+; ----------------------------------------
+
+  *sNew = AddElement(*psV\Sections()\Blocks())
+  CopyStructure(*psBlock, *sNew, VECVI_BLOCK)
+  
+  If *psRelative = #Null
+    *psRelative = *psBlock
+  EndIf
+  
+  If piPos = #LEFT
+    MoveElement(*psV\Sections()\Blocks(), #PB_List_Before, *psRelative)
+  ElseIf piPos = #RIGHT
+    MoveElement(*psV\Sections()\Blocks(), #PB_List_After, *psRelative)
+  ElseIf piPos = #TOP
+    MoveElement(*psV\Sections()\Blocks(), #PB_List_First)
+  ElseIf piPos = #BOTTOM
+    MoveElement(*psV\Sections()\Blocks(), #PB_List_Last)
+  EndIf
+  
+  ProcedureReturn *sNew
+
+EndProcedure
+
+Procedure.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGHT, *psRelative.VECVI_SECTION = #Null)
+; ----------------------------------------
+; public     :: duplicates the given section.
+; param      :: *psV        - VecVi structure
+;               *psSection  - VecVi section to duplicate
+;               piPos       - (S: #RIGHT) where to add the new section
+;                             #TOP:    add as first section
+;                             #BOTTOM: add as last section
+;                             #LEFT:   add before current section
+;                             #RIGHT:  add after current section
+;               *psRelative - piPos relative to section
+;                             if not given, position is determined from *psSection
+; returns    :: pointer to the new section element
+; remarks    :: 
+; ----------------------------------------
+  Protected *sNew.VECVI_SECTION
+; ----------------------------------------
+
+  *sNew = AddElement(*psV\Sections())
+  CopyStructure(*psSection, *sNew, VECVI_SECTION)
+  
+  If *psRelative = #Null
+    *psRelative = *psSection
+  EndIf
+  
+  If piPos = #LEFT
+    MoveElement(*psV\Sections(), #PB_List_Before, *psRelative)
+  ElseIf piPos = #RIGHT
+    MoveElement(*psV\Sections(), #PB_List_After, *psRelative)
+  ElseIf piPos = #TOP
+    MoveElement(*psV\Sections(), #PB_List_First)
+  ElseIf piPos = #BOTTOM
+    MoveElement(*psV\Sections(), #PB_List_Last)
+  EndIf
+  
+  ProcedureReturn *sNew
+
+EndProcedure
+
 ;- >>> graphical elements <<<
 
 Procedure TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
@@ -4603,22 +4671,7 @@ Procedure OutputCanvas(*psV.VECVI, piGadget.i, piPage.i = 1)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_CANVAS, piGadget, -1, "", piPage)
-  
-EndProcedure
-
-Procedure OutputCanvasImage(*psV.VECVI, piGadget.i, piImage.i, piPage.i = 1)
-; ----------------------------------------
-; public     :: outputs VecVi on a canvas gadget using an image.
-; param      :: *psV     - VecVi structure
-;               piGadget - canvas gadget ID
-;               piImage  - image ID
-;               piPage   - page to show on the canvas
-; returns    :: (nothing)
-; remarks    :: 
-; ----------------------------------------
-  
-  _draw(*psV, #OUTPUT_CANVASIMAGE, piGadget, piImage, "", piPage)
+  _draw(*psV, #OUTPUT_CANVAS, piGadget, "", piPage)
   
 EndProcedure
 
@@ -4632,7 +4685,7 @@ Procedure OutputImage(*psV.VECVI, piImage.i, piPage.i = 1)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_IMAGE, piImage, -1, "", piPage)
+  _draw(*psV, #OUTPUT_IMAGE, piImage, "", piPage)
   
 EndProcedure
 
@@ -4641,12 +4694,12 @@ Procedure OutputWindow(*psV.VECVI, piWindow.i, piPage.i = 1)
 ; public     :: outputs VecVi on a window.
 ; param      :: *psV     - VecVi structure
 ;               piGadget - window ID
-;               piPage   - real page to show on the window
+;               piPage   - page to show on the window
 ; returns    :: (nothing)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_WINDOW, piWindow, -1, "", piPage)
+  _draw(*psV, #OUTPUT_WINDOW, piWindow, "", piPage)
   
 EndProcedure
 
@@ -4658,20 +4711,21 @@ Procedure OutputPrinter(*psV.VECVI)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_PRINTER, -1, -1, "", 0)
+  _draw(*psV, #OUTPUT_PRINTER, -1, "", 0)
   
 EndProcedure
 
-Procedure OutputSVG(*psV.VECVI, pzPath.s)
+Procedure OutputSVG(*psV.VECVI, pzPath.s, piPage.i = 1)
 ; ----------------------------------------
 ; public     :: outputs VecVi to a .svg file.
 ; param      :: *psV   - VecVi structure
 ;               pzPath - full output path
+;               piPage - page to show on the window
 ; returns    :: (nothing)
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_SVG, -1, -1, pzPath, 0)
+  _draw(*psV, #OUTPUT_SVG, -1, pzPath, piPage)
 
 EndProcedure
 
@@ -4684,7 +4738,7 @@ Procedure OutputPDF(*psV.VECVI, pzPath.s)
 ; remarks    :: 
 ; ----------------------------------------
 
-  _draw(*psV, #OUTPUT_PDF, -1, -1, pzPath, 0)
+  _draw(*psV, #OUTPUT_PDF, -1, pzPath, 0)
 
 EndProcedure
 
