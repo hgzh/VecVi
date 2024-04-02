@@ -1,4 +1,4 @@
-﻿XIncludeFile "../VecVi2.pb"
+﻿XIncludeFile "../VecVi.pb"
 
 Global *VecVi
 Global.i iCurPage,
@@ -24,6 +24,8 @@ Runtime Enumeration Toolbar
   #TBB_SINGLE
   #TBB_PAGEP
   #TBB_PAGEN
+  #TBB_PDF
+  #TBB_SVG
 EndEnumeration
 
 Procedure createVecVi()
@@ -88,7 +90,7 @@ Procedure createVecVi()
   For i = 0 To 10
     VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.05, 5, Str(i), VecVi::#RIGHT, VecVi::#ALL)    
     VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Mr. " + Str(i), VecVi::#RIGHT, VecVi::#ALL)    
-    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Torplatz " + Str(i + Random(9, 1)), VecVi::#RIGHT, VecVi::#ALL)    
+    VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.30, 5, "Torplätzle " + Str(i + Random(9, 1)), VecVi::#RIGHT, VecVi::#ALL)    
     VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.15, 5, Str(Random(9, 0)), VecVi::#RIGHT, VecVi::#ALL)    
     VecVi::TextCell(*VecVi, VecVi::GetPageWidth(*VecVi) * 0.20, 5, "mail" + Str(i) + "@test.com", VecVi::#NEWLINE, VecVi::#ALL)
   Next i
@@ -316,18 +318,32 @@ Procedure zoom()
 EndProcedure
 
 Procedure printDocument()
-  Protected.s zFile
   
   If Not PrintRequester()
-;     zFile = OpenFileRequester("PDF-Ausgabe", GetTemporaryDirectory(), "PDF;*.pdf", 0)
-;     VecVi::OutputPbPDF(*VecVi, zFile + ".pdf")
-;     RunProgram(zFile + ".pdf")
     ProcedureReturn 1
   EndIf
   If StartPrinting("Test")
     VecVi::OutputPrinter(*VecVi)
     StopPrinting()
   EndIf
+  
+EndProcedure
+
+Procedure pdfDocument()
+  Protected.s zFile
+    
+  zFile = OpenFileRequester("PDF-Ausgabe", GetTemporaryDirectory(), "PDF;*.pdf", 0)
+  VecVi::OutputPDF(*VecVi, zFile + ".pdf")
+  RunProgram(zFile + ".pdf")
+  
+EndProcedure
+
+Procedure svgDocument()
+  Protected.s zFile
+    
+  zFile = OpenFileRequester("SVG-Ausgabe", GetTemporaryDirectory(), "SVG;*.svg", 0)
+  VecVi::OutputSVG(*VecVi, zFile + ".svg", Val(InputRequester("Seite", "", "1")))
+  RunProgram(zFile + ".svg")
   
 EndProcedure
 
@@ -398,15 +414,17 @@ Procedure main()
   If Not OpenXMLDialog(iDialog, ParseXML(#PB_Any, zXML), "WIN_MAIN") : ProcedureReturn : EndIf
   
   If CreateToolBar(#TBA_MAIN, WindowID(#WIN_MAIN), #PB_ToolBar_Small | #PB_ToolBar_Text | #PB_ToolBar_InlineText)
-    ToolBarStandardButton(#TBB_PRINT, #PB_ToolBarIcon_Print, #PB_ToolBar_Normal, "Print")
+    ToolBarImageButton(#TBB_PRINT, 0, #PB_ToolBar_Normal, "Print")
     ToolBarSeparator()
-    ToolBarStandardButton(#TBB_ZOOMI, #PB_ToolBarIcon_Find, #PB_ToolBar_Normal, "+")
-    ToolBarStandardButton(#TBB_ZOOMO, #PB_ToolBarIcon_Find, #PB_ToolBar_Normal, "-")
+    ToolBarImageButton(#TBB_ZOOMI, 0, #PB_ToolBar_Normal, "+")
+    ToolBarImageButton(#TBB_ZOOMO, 0, #PB_ToolBar_Normal, "-")
     ToolBarSeparator()
-    ToolBarStandardButton(#TBB_SINGLE, #PB_ToolBarIcon_PrintPreview, #PB_ToolBar_Toggle, "Single Page View")
+    ToolBarImageButton(#TBB_SINGLE, 0, #PB_ToolBar_Toggle, "Single Page View")
       SetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE, 1)
-    ToolBarStandardButton(#TBB_PAGEP, #PB_ToolBarIcon_Undo, #PB_ToolBar_Normal, "Previous Page")
-    ToolBarStandardButton(#TBB_PAGEN, #PB_ToolBarIcon_Redo, #PB_ToolBar_Normal, "Next Page")
+    ToolBarImageButton(#TBB_PAGEP, 0, #PB_ToolBar_Normal, "Previous Page")
+    ToolBarImageButton(#TBB_PAGEN, 0, #PB_ToolBar_Normal, "Next Page")
+    ToolBarImageButton(#TBB_PDF, 0, #PB_ToolBar_Normal, "PDF")
+    ToolBarImageButton(#TBB_SVG, 0, #PB_ToolBar_Normal, "SVG")
   EndIf
   
   dRes = VecVi::GetCanvasOutputResolution(#CNV_PREVIEW) * 0.05
@@ -429,6 +447,8 @@ Procedure main()
   BindEvent(#PB_Event_Menu, @switchOutputMode(), #WIN_MAIN, #TBB_SINGLE)
   BindEvent(#PB_Event_Menu, @stepPage(), #WIN_MAIN, #TBB_PAGEN)
   BindEvent(#PB_Event_Menu, @stepPage(), #WIN_MAIN, #TBB_PAGEP)
+  BindEvent(#PB_Event_Menu, @pdfDocument(), #WIN_MAIN, #TBB_PDF)
+  BindEvent(#PB_Event_Menu, @svgDocument(), #WIN_MAIN, #TBB_SVG)
   
   BindEvent(#PB_Event_SizeWindow, @simpleRedraw(), #WIN_MAIN)
   
