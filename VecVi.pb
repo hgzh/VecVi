@@ -101,6 +101,10 @@
 ;    - fixed bugs with OutputPDF() and OutputSVG()
 ;    - fixed another bug causing crash if section is empty
 ;    - removed CanvasImage output
+;   v.1.14 (2024-04-04)
+;    - changed the output functions to have a return value
+;      indicating output success
+;    - fixed bugs with DuplicateBlock() and DuplicateSection()
 ; ###########################################################
 
 EnableExplicit
@@ -380,6 +384,8 @@ EndStructure
   Declare.d GetCanvasOutputResolution(piCanvas.i)
   Declare.d GetTextWidth(*psV.VECVI, pzText.s)
   Declare   SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
+  Declare.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *psRelative.VECVI_BLOCK = #Null)
+  Declare.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGHT, *psRelative.VECVI_SECTION = #Null)
   Declare   TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
   Declare   ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
   Declare   ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
@@ -391,12 +397,12 @@ EndStructure
   Declare   Sp(*psV.VECVI, pdSp.d = -1)
   Declare   Rectangle(*psV.VECVI, pdW.d, pdH.d, piLn.i = #RIGHT, piBorder.i = #False, piFill.i = #False)
   Declare   Sector(*psV.VECVI, pdW.d, pdH.d, pdStart.d, pdEnd.d, piLn.i = #RIGHT, piBorder.i = #False, piConnect.i = #True, piFill.i = #False)
-  Declare   OutputCanvas(*psV.VECVI, piGadget.i, piPage.i = 1)
-  Declare   OutputImage(*psV.VECVI, piImage.i, piPage.i = 1)
-  Declare   OutputWindow(*psV.VECVI, piWindow.i, piPage.i = 1)
-  Declare   OutputPrinter(*psV.VECVI)
-  Declare   OutputSVG(*psV.VECVI, pzPath.s, piPage.i = 1)
-  Declare   OutputPDF(*psV.VECVI, pzPath.s)
+  Declare.i OutputCanvas(*psV.VECVI, piGadget.i, piPage.i = 1)
+  Declare.i OutputImage(*psV.VECVI, piImage.i, piPage.i = 1)
+  Declare.i OutputWindow(*psV.VECVI, piWindow.i, piPage.i = 1)
+  Declare.i OutputPrinter(*psV.VECVI)
+  Declare.i OutputSVG(*psV.VECVI, pzPath.s, piPage.i = 1)
+  Declare.i OutputPDF(*psV.VECVI, pzPath.s)
     
 EndDeclareModule
 
@@ -2082,7 +2088,7 @@ Procedure.i _drawElements(*psV.VECVI, piStartPageRef.i, piE.i = 0)
   
 EndProcedure
 
-Procedure _draw(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piPage.i)
+Procedure.i _draw(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piPage.i)
 ; ----------------------------------------
 ; internal   :: output of all VecVi stuff to the specified output channel.
 ; param      :: psV - VecVi structure
@@ -2097,14 +2103,15 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piPage.i)
 ;               pzPath     - full output path for .svg and .pdf outputs
 ;               piPage     - only output the specified page
 ;                            for single-page output channels
-; returns    :: (nothing)
+; returns    :: (i) drawing completion state
+;               0: error occured while drawing
+;               1: drawing finished successfully
 ; remarks    :: 
 ; ----------------------------------------
   Protected.i iOutput,
               iOldPageRef,
               i,
-              iFail,
-              iRes
+              iFail
   Protected   siS.Integer
   Protected   siB.Integer
   Protected   siE.Integer
@@ -2132,6 +2139,13 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piPage.i)
   ElseIf piOutput = #OUTPUT_PDF
     iOutput = PdfVectorOutput(pzPath, *psV\Size\dWidth, *psV\Size\dHeight, #PB_Unit_Millimeter)
     *psV\iOnlyPage = -1
+  EndIf
+  
+  ; //
+  ; return if output is invalid
+  ; //
+  If iOutput = 0
+    ProcedureReturn 0
   EndIf
   
   ; //
@@ -2179,74 +2193,60 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piPage.i)
   EndIf
   
   ; //
-  ; start drawing to the specified output
+  ; start drawing to the specified output, return if failed
   ; //
-  iRes = StartVectorDrawing(iOutput)
-  If iRes
+  If StartVectorDrawing(iOutput) = 0
+    ProcedureReturn 0
+  EndIf
 
-    ; //
-    ; scaling
-    ; //
-    ScaleCoordinates(*psV\d("ScaleX"), *psV\d("ScaleY"))
-    
-    ; //
-    ; reset the drawing area if needed
-    ; //
-    If *psV\iDrawMode <> #DRAW_PAGED
-      VectorSourceColor(*psV\i("DeskColor"))
-      FillVectorOutput()
-    EndIf
-    
-    ; //
-    ; pre-select the very first element
-    ; //
-    iFail = 0
-    If FirstElement(*psV\Sections()) = #Null
-      iFail = 1
-    Else
-      While FirstElement(*psV\Sections()\Blocks()) = #Null
-        If NextElement(*psV\Sections()) = #Null
-          iFail = 1
-          Break
-        EndIf
-      Wend
-    EndIf
-    
-    If iFail = 1
-      ; //
-      ; stop drawing
-      ; //
-      StopVectorDrawing()
-      ProcedureReturn
-    EndIf
-    
-    FirstElement(*psV\Sections()\Pages())
-
-    iOldPageRef = -1
-    
-    ; //
-    ; determine the starting element
-    ; //
-    If *psV\iDrawMode = #DRAW_PAGED
-      ; //
-      ; allow to define a starting page for paged outputs
-      ; //
-      If *psV\iOnlyPage > 0
-        ForEach *psV\Sections()
-          ForEach *psV\Sections()\Pages()
-            If *psV\Sections()\Pages()\iNr = *psV\iOnlyPage
-              *psV\iOnlyPage = @*psV\Sections()\Pages()
-              _getFirstElementByPage(*psV, *psV\iOnlyPage, @siS, @siB, @siE)
-              Break 2
-            EndIf
-          Next
-        Next
+  ; //
+  ; scaling
+  ; //
+  ScaleCoordinates(*psV\d("ScaleX"), *psV\d("ScaleY"))
+  
+  ; //
+  ; reset the drawing area if needed
+  ; //
+  If *psV\iDrawMode <> #DRAW_PAGED
+    VectorSourceColor(*psV\i("DeskColor"))
+    FillVectorOutput()
+  EndIf
+  
+  ; //
+  ; pre-select the very first element
+  ; //
+  iFail = 0
+  If FirstElement(*psV\Sections()) = #Null
+    iFail = 1
+  Else
+    While FirstElement(*psV\Sections()\Blocks()) = #Null
+      If NextElement(*psV\Sections()) = #Null
+        iFail = 1
+        Break
       EndIf
-      
-    ElseIf *psV\iDrawMode = #DRAW_SINGLE And *psV\iOnlyPage > 0
-      ; //
-      ; single page output requires first element on given page
-      ; //
+    Wend
+  EndIf
+  
+  If iFail = 1
+    ; //
+    ; stop drawing
+    ; //
+    StopVectorDrawing()
+    ProcedureReturn 0
+  EndIf
+  
+  FirstElement(*psV\Sections()\Pages())
+
+  iOldPageRef = -1
+  
+  ; //
+  ; determine the starting element
+  ; //
+  If *psV\iDrawMode = #DRAW_PAGED
+    ; //
+    ; allow to define a starting page for paged outputs
+    ; //
+    If *psV\iOnlyPage > 0
       ForEach *psV\Sections()
         ForEach *psV\Sections()\Pages()
           If *psV\Sections()\Pages()\iNr = *psV\iOnlyPage
@@ -2256,144 +2256,160 @@ Procedure _draw(*psV.VECVI, piOutput.i, piObject.i, pzPath.s, piPage.i)
           EndIf
         Next
       Next
-      
-    Else
-      ; //
-      ; all other modes go by offset
-      ; //
-      _getFirstElementByOffset(*psV, @siS, @siB, @siE)
     EndIf
     
+  ElseIf *psV\iDrawMode = #DRAW_SINGLE And *psV\iOnlyPage > 0
     ; //
-    ; select the starting element
+    ; single page output requires first element on given page
     ; //
-    If siS\i
-      ChangeCurrentElement(*psV\Sections(), siS\i)
-      If siB\i
-        ChangeCurrentElement(*psV\Sections()\Blocks(), siB\i)
-        If siE\i
-          ; //
-          ; select the element
-          ; //
-          ChangeCurrentElement(*psV\Sections()\Blocks()\Elements(), siE\i)
-          
-          ; //
-          ; select the corresponding page
-          ; //
-          iOldPageRef = *psV\Sections()\Blocks()\Elements()\iPageRef
-          ChangeCurrentElement(*psV\Sections()\Pages(), iOldPageRef)
+    ForEach *psV\Sections()
+      ForEach *psV\Sections()\Pages()
+        If *psV\Sections()\Pages()\iNr = *psV\iOnlyPage
+          *psV\iOnlyPage = @*psV\Sections()\Pages()
+          _getFirstElementByPage(*psV, *psV\iOnlyPage, @siS, @siB, @siE)
+          Break 2
         EndIf
+      Next
+    Next
+    
+  Else
+    ; //
+    ; all other modes go by offset
+    ; //
+    _getFirstElementByOffset(*psV, @siS, @siB, @siE)
+  EndIf
+  
+  ; //
+  ; select the starting element
+  ; //
+  If siS\i
+    ChangeCurrentElement(*psV\Sections(), siS\i)
+    If siB\i
+      ChangeCurrentElement(*psV\Sections()\Blocks(), siB\i)
+      If siE\i
+        ; //
+        ; select the element
+        ; //
+        ChangeCurrentElement(*psV\Sections()\Blocks()\Elements(), siE\i)
+        
+        ; //
+        ; select the corresponding page
+        ; //
+        iOldPageRef = *psV\Sections()\Blocks()\Elements()\iPageRef
+        ChangeCurrentElement(*psV\Sections()\Pages(), iOldPageRef)
+      EndIf
+    EndIf
+  EndIf
+  
+  ; //
+  ; loop through all sections
+  ; //
+  i = 0
+  Repeat
+    
+    ; //
+    ; for the first loop, don't reset the substructures as they were already preselected
+    ; //
+    If i > 0
+      ResetList(*psV\Sections()\Pages())
+      If FirstElement(*psV\Sections()\Blocks()) = #Null
+        Continue
       EndIf
     EndIf
     
     ; //
-    ; loop through all sections
+    ; loop through all blocks of the section
     ; //
-    i = 0
     Repeat
       
       ; //
-      ; for the first loop, don't reset the substructures as they were already preselected
+      ; performance: stop drawing if the block is not displayed in multi page outputs
       ; //
-      If i > 0
-        ResetList(*psV\Sections()\Pages())
-        If FirstElement(*psV\Sections()\Blocks()) = #Null
-          Continue
+      If *psV\iDrawMode = #DRAW_MULTIV
+        If -*psV\d("OutputOffsetTop") * *psV\d("ScaleY") + VectorOutputHeight() < *psV\Sections()\Blocks()\DrawPos\dY * *psV\d("ScaleY")
+          Break 2
+        EndIf
+      ElseIf *psV\iDrawMode = #DRAW_MULTIH
+        If -*psV\d("OutputOffsetLeft") * *psV\d("ScaleX") + VectorOutputWidth() < *psV\Sections()\Blocks()\DrawPos\dX * *psV\d("ScaleX")
+          Break 2
         EndIf
       EndIf
       
       ; //
-      ; loop through all blocks of the section
+      ; detect page breaks
       ; //
-      Repeat
+      If *psV\iDrawMode <> #DRAW_SINGLE And (*psV\Sections()\Blocks()\iPageBeginRef <> iOldPageRef Or i = 0)
+        ; //
+        ; non-single page outputs´
+        ; //
+      
+        ; //
+        ; select next page if it's not the preselected first one
+        ; //
+        If i > 0
+          NextElement(*psV\Sections()\Pages())
+        EndIf
+        
+        _drawNewPage(*psV)
+        _drawEndPage(*psV)
+        i + 1
+      ElseIf *psV\iDrawMode = #DRAW_SINGLE
+        ; //
+        ; single page output
+        ; //
         
         ; //
-        ; performance: stop drawing if the block is not displayed in multi page outputs
+        ; if the block is not on the page anymore, stop
         ; //
-        If *psV\iDrawMode = #DRAW_MULTIV
-          If -*psV\d("OutputOffsetTop") * *psV\d("ScaleY") + VectorOutputHeight() < *psV\Sections()\Blocks()\DrawPos\dY * *psV\d("ScaleY")
-            Break 2
-          EndIf
-        ElseIf *psV\iDrawMode = #DRAW_MULTIH
-          If -*psV\d("OutputOffsetLeft") * *psV\d("ScaleX") + VectorOutputWidth() < *psV\Sections()\Blocks()\DrawPos\dX * *psV\d("ScaleX")
-            Break 2
-          EndIf
+        If *psV\iOnlyPage <> *psV\Sections()\Blocks()\iPageBeginRef And *psV\iOnlyPage <> *psV\Sections()\Blocks()\iPageEndRef
+          Break 2
         EndIf
         
         ; //
-        ; detect page breaks
+        ; draw the only page that has to be displayed in single page output mode
         ; //
-        If *psV\iDrawMode <> #DRAW_SINGLE And (*psV\Sections()\Blocks()\iPageBeginRef <> iOldPageRef Or i = 0)
-          ; //
-          ; non-single page outputs´
-          ; //
-        
-          ; //
-          ; select next page if it's not the preselected first one
-          ; //
-          If i > 0
-            NextElement(*psV\Sections()\Pages())
-          EndIf
-          
+        If i = 0
           _drawNewPage(*psV)
           _drawEndPage(*psV)
           i + 1
-        ElseIf *psV\iDrawMode = #DRAW_SINGLE
-          ; //
-          ; single page output
-          ; //
-          
-          ; //
-          ; if the block is not on the page anymore, stop
-          ; //
-          If *psV\iOnlyPage <> *psV\Sections()\Blocks()\iPageBeginRef And *psV\iOnlyPage <> *psV\Sections()\Blocks()\iPageEndRef
-            Break 2
-          EndIf
-          
-          ; //
-          ; draw the only page that has to be displayed in single page output mode
-          ; //
-          If i = 0
-            _drawNewPage(*psV)
-            _drawEndPage(*psV)
-            i + 1
-          EndIf
         EndIf
-        
+      EndIf
+      
+      ; //
+      ; draw the block's elements
+      ; //
+      If *psV\iDrawMode = #DRAW_SINGLE
         ; //
-        ; draw the block's elements
+        ; single page output, define starting element and required page reference
         ; //
-        If *psV\iDrawMode = #DRAW_SINGLE
-          ; //
-          ; single page output, define starting element and required page reference
-          ; //
-          If _drawElements(*psV, *psV\iOnlyPage, siE\i) = 0
-            Break 2
-          EndIf
-          siE\i = 0
-        Else
-          ; //
-          ; other outputs, define the starting page reference for detecting page breaks inside the block
-          ; //
-          If _drawElements(*psV, *psV\Sections()\Blocks()\iPageBeginRef) = 0
-            Break 2
-          EndIf
+        If _drawElements(*psV, *psV\iOnlyPage, siE\i) = 0
+          Break 2
         EndIf
-        
+        siE\i = 0
+      Else
         ; //
-        ; current page after drawing of elements, may differ because
-        ; of page breaks inside the block
+        ; other outputs, define the starting page reference for detecting page breaks inside the block
         ; //
-        iOldPageRef = *psV\Sections()\Blocks()\iPageEndRef
-        
-      Until NextElement(*psV\Sections()\Blocks()) = #Null
-    Until NextElement(*psV\Sections()) = #Null
-    
-    ; //
-    ; stop drawing
-    ; //
-    StopVectorDrawing()
-  EndIf
+        If _drawElements(*psV, *psV\Sections()\Blocks()\iPageBeginRef) = 0
+          Break 2
+        EndIf
+      EndIf
+      
+      ; //
+      ; current page after drawing of elements, may differ because
+      ; of page breaks inside the block
+      ; //
+      iOldPageRef = *psV\Sections()\Blocks()\iPageEndRef
+      
+    Until NextElement(*psV\Sections()\Blocks()) = #Null
+  Until NextElement(*psV\Sections()) = #Null
+  
+  ; //
+  ; stop drawing
+  ; //
+  StopVectorDrawing()
+  
+  ProcedureReturn 1
   
 EndProcedure
 
@@ -4099,12 +4115,15 @@ Procedure.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *ps
 ; ----------------------------------------
   Protected *sNew.VECVI_BLOCK
 ; ----------------------------------------
-
+  
+  PushListPosition(*psV\Sections()\Blocks())
+  
   *sNew = AddElement(*psV\Sections()\Blocks())
   CopyStructure(*psBlock, *sNew, VECVI_BLOCK)
   
-  If *psRelative = #Null
-    *psRelative = *psBlock
+  If *psRelative = #Null And (piPos = #LEFT Or piPos = #RIGHT)
+    PopListPosition(*psV\Sections()\Blocks())
+    ProcedureReturn *sNew
   EndIf
   
   If piPos = #LEFT
@@ -4116,6 +4135,8 @@ Procedure.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *ps
   ElseIf piPos = #BOTTOM
     MoveElement(*psV\Sections()\Blocks(), #PB_List_Last)
   EndIf
+  
+  PopListPosition(*psV\Sections()\Blocks())
   
   ProcedureReturn *sNew
 
@@ -4138,12 +4159,15 @@ Procedure.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGH
 ; ----------------------------------------
   Protected *sNew.VECVI_SECTION
 ; ----------------------------------------
-
+  
+  PushListPosition(*psV\Sections())
+  
   *sNew = AddElement(*psV\Sections())
   CopyStructure(*psSection, *sNew, VECVI_SECTION)
   
-  If *psRelative = #Null
-    *psRelative = *psSection
+  If *psRelative = #Null And (piPos = #LEFT Or piPos = #RIGHT)
+    PopListPosition(*psV\Sections())
+    ProcedureReturn *sNew
   EndIf
   
   If piPos = #LEFT
@@ -4155,6 +4179,8 @@ Procedure.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGH
   ElseIf piPos = #BOTTOM
     MoveElement(*psV\Sections(), #PB_List_Last)
   EndIf
+  
+  PopListPosition(*psV\Sections())
   
   ProcedureReturn *sNew
 
@@ -4661,84 +4687,96 @@ EndProcedure
 
 ;- >>> output functions <<<
 
-Procedure OutputCanvas(*psV.VECVI, piGadget.i, piPage.i = 1)
+Procedure.i OutputCanvas(*psV.VECVI, piGadget.i, piPage.i = 1)
 ; ----------------------------------------
 ; public     :: outputs VecVi on a canvas gadget.
 ; param      :: *psV     - VecVi structure
 ;               piGadget - canvas gadget ID
 ;               piPage   - page to show on the canvas
-; returns    :: (nothing)
+; returns    :: (i) output state
+;               0: error while creating output
+;               1: output successful
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_CANVAS, piGadget, "", piPage)
+  ProcedureReturn _draw(*psV, #OUTPUT_CANVAS, piGadget, "", piPage)
   
 EndProcedure
 
-Procedure OutputImage(*psV.VECVI, piImage.i, piPage.i = 1)
+Procedure.i OutputImage(*psV.VECVI, piImage.i, piPage.i = 1)
 ; ----------------------------------------
 ; public     :: outputs VecVi on an image.
 ; param      :: *psV     - VecVi structure
 ;               piGadget - image ID
 ;               piPage   - page to show on the image
-; returns    :: (nothing)
+; returns    :: (i) output state
+;               0: error while creating output
+;               1: output successful
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_IMAGE, piImage, "", piPage)
+  ProcedureReturn _draw(*psV, #OUTPUT_IMAGE, piImage, "", piPage)
   
 EndProcedure
 
-Procedure OutputWindow(*psV.VECVI, piWindow.i, piPage.i = 1)
+Procedure.i OutputWindow(*psV.VECVI, piWindow.i, piPage.i = 1)
 ; ----------------------------------------
 ; public     :: outputs VecVi on a window.
 ; param      :: *psV     - VecVi structure
 ;               piGadget - window ID
 ;               piPage   - page to show on the window
-; returns    :: (nothing)
+; returns    :: (i) output state
+;               0: error while creating output
+;               1: output successful
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_WINDOW, piWindow, "", piPage)
+  ProcedureReturn _draw(*psV, #OUTPUT_WINDOW, piWindow, "", piPage)
   
 EndProcedure
 
-Procedure OutputPrinter(*psV.VECVI)
+Procedure.i OutputPrinter(*psV.VECVI)
 ; ----------------------------------------
 ; public     :: outputs VecVi on a printer.
 ; param      :: *psV       - VecVi structure
-; returns    :: (nothing)
+; returns    :: (i) output state
+;               0: error while creating output
+;               1: output successful
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_PRINTER, -1, "", 0)
+  ProcedureReturn _draw(*psV, #OUTPUT_PRINTER, -1, "", 0)
   
 EndProcedure
 
-Procedure OutputSVG(*psV.VECVI, pzPath.s, piPage.i = 1)
+Procedure.i OutputSVG(*psV.VECVI, pzPath.s, piPage.i = 1)
 ; ----------------------------------------
 ; public     :: outputs VecVi to a .svg file.
 ; param      :: *psV   - VecVi structure
 ;               pzPath - full output path
 ;               piPage - page to show on the window
-; returns    :: (nothing)
+; returns    :: (i) output state
+;               0: error while creating output
+;               1: output successful
 ; remarks    :: 
 ; ----------------------------------------
   
-  _draw(*psV, #OUTPUT_SVG, -1, pzPath, piPage)
+  ProcedureReturn _draw(*psV, #OUTPUT_SVG, -1, pzPath, piPage)
 
 EndProcedure
 
-Procedure OutputPDF(*psV.VECVI, pzPath.s)
+Procedure.i OutputPDF(*psV.VECVI, pzPath.s)
 ; ----------------------------------------
 ; public     :: outputs VecVi to a .svg file.
 ; param      :: *psV   - VecVi structure
 ;               pzPath - full output path
-; returns    :: (nothing)
+; returns    :: (i) output state
+;               0: error while creating output
+;               1: output successful
 ; remarks    :: 
 ; ----------------------------------------
 
-  _draw(*psV, #OUTPUT_PDF, -1, pzPath, 0)
+  ProcedureReturn _draw(*psV, #OUTPUT_PDF, -1, pzPath, 0)
 
 EndProcedure
 
