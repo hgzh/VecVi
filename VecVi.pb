@@ -106,6 +106,9 @@
 ;      indicating output success
 ;    - fixed bugs with DuplicateBlock() and DuplicateSection()
 ;   v.1.15 (2024-10-03)
+;    - added GetParagraphHeight()
+;    - changed ParagraphCell() to return the height of the
+;      new paragraph cell
 ;    - fixed bug with line numbering and empty sections
 ; ###########################################################
 
@@ -385,11 +388,12 @@ EndStructure
   Declare.d GetOutputSize(*psV.VECVI, piOrientation.i)
   Declare.d GetCanvasOutputResolution(piCanvas.i)
   Declare.d GetTextWidth(*psV.VECVI, pzText.s)
+  Declare.d GetParagraphHeight(*psV.VECVI, pzText.s, pdWidth.d)
   Declare   SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
   Declare.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *psRelative.VECVI_BLOCK = #Null)
   Declare.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGHT, *psRelative.VECVI_SECTION = #Null)
   Declare   TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
-  Declare   ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
+  Declare.d ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
   Declare   ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
   Declare   HorizontalLine(*psV.VECVI, pdW.d, piHAlign.i = #LEFT)
   Declare   VerticalLine(*psV.VECVI, pdH.d, piVAlign.i = #TOP)
@@ -4084,6 +4088,36 @@ Procedure.d GetTextWidth(*psV.VECVI, pzText.s)
   
 EndProcedure
 
+Procedure.d GetParagraphHeight(*psV.VECVI, pzText.s, pdWidth.d)
+; ----------------------------------------
+; public     :: calculates the needed height of the given paragraph in the current font.
+; param      :: *psV    - VecVi structure
+;               pzText  - text to calculate the height
+;               pdWidth - available width
+; returns    :: (d) needed text width
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iImage
+  Protected.d dHeight
+; ----------------------------------------
+  
+  iImage = CreateImage(#PB_Any, 1, 1)
+  If Not IsImage(iImage)
+    ProcedureReturn 0
+  EndIf
+  
+  If StartVectorDrawing(ImageVectorOutput(iImage, #PB_Unit_Millimeter))
+    VectorFont(FontID(*psV\i("CurrentFont")), *psV\d("FontSize"))
+    dHeight = VectorParagraphHeight(pzText, pdWidth, *psV\Size\dHeight)
+    StopVectorDrawing()
+  EndIf
+  
+  FreeImage(iImage)
+  
+  ProcedureReturn dHeight
+  
+EndProcedure
+
 Procedure SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
 ; ----------------------------------------
 ; public     :: sets the tokens which are replaced by the page numbering.
@@ -4261,7 +4295,7 @@ Procedure TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder
     
 EndProcedure
 
-Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
+Procedure.d ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
 ; ----------------------------------------
 ; public     :: creates a new paragraph cell on the current block.
 ; param      :: *psV     - VecVi structure
@@ -4290,7 +4324,7 @@ Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piB
 ;               piFill   - (S: #False) wheter to fill the cell background with a color.
 ;                          #True:  fill the cell background (see VecVi::SetFillColor())
 ;                          #False: no fill, use the color of the background of the output
-; returns    :: (nothing)
+; returns    :: (d) height of the paragraph
 ; remarks    :: 
 ; ----------------------------------------
   Protected.i iImage
@@ -4336,6 +4370,8 @@ Procedure ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piB
 
     _applyPosition(*psV, *Target, @*Target\Elements())
   EndWith
+  
+  ProcedureReturn *Target\Elements()\d("H")
     
 EndProcedure
 
