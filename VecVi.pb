@@ -105,6 +105,8 @@
 ;    - changed the output functions to have a return value
 ;      indicating output success
 ;    - fixed bugs with DuplicateBlock() and DuplicateSection()
+;   v.1.15 (2024-10-03)
+;    - fixed bug with line numbering and empty sections
 ; ###########################################################
 
 EnableExplicit
@@ -2805,6 +2807,13 @@ Procedure _process(*psV.VECVI)
     ; //
     ClearList(*psV\Sections()\Pages())
     *psV\Sections()\iNrPages = 0
+    
+    ; //
+    ; if the section contains no blocks, continue with next section
+    ; //
+    If ListSize(*psV\Sections()\Blocks()) < 1
+      Continue
+    EndIf
     
     ; //
     ; add first page
