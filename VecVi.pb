@@ -6,8 +6,8 @@
 
 ;   this module allows you to create documents using the
 ;   VectorDrawing library of PureBasic and output it to a
-;   CanvasGadget, Window, Image object, .svg file (Linux),
-;   .pdf file (not Windows) or send it directly to a printer.
+;   CanvasGadget, Window, Image object, .svg file, .pdf file
+;   or send it directly to a printer.
 
 ; ###########################################################
 ;                          LICENSING
