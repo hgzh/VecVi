@@ -249,6 +249,7 @@ Structure VECVI_BLOCK
   ; public     :: one element block
   ; ----------------------------------------
   List Elements.VECVI_ELEMENT()
+  Map Variables.s()
   
   SectPos.VECVI_POS
   PagePos.VECVI_POS
@@ -314,6 +315,8 @@ Structure VECVI
   List Sections.VECVI_SECTION()
   List Fonts.VECVI_FONT()
   List Images.VECVI_IMAGE()
+  Map Variables.s()
+  Map NamedPos.VECVI_POS()
   
   iNrSections.i
   iNrPages.i
@@ -369,6 +372,9 @@ EndStructure
   Declare   SetXPos(*psV.VECVI, pdX.d, piRelative = #False)
   Declare.d GetYPos(*psV.VECVI)
   Declare   SetYPos(*psV.VECVI, pdY.d, piRelative = #False)
+  Declare.d GetNamedPos(*psV.VECVI, pzName.s, piXY.i)
+  Declare   SetNamedPos(*psV.VECVI, pzName.s, pdX.d = -1, pdY.d = -1)
+  Declare   UseNamedPos(*psV.VECVI, pzName.s)
   Declare.d GetPageWidth(*psV.VECVI, piPage.i = 0, piNet = #True)
   Declare.d GetPageHeight(*psV.VECVI, piPage.i = 0, piNet = #True)
   Declare.d GetOutputScale(*psV.VECVI, piAxis.i)
@@ -390,8 +396,15 @@ EndStructure
   Declare.d GetTextWidth(*psV.VECVI, pzText.s)
   Declare.d GetParagraphHeight(*psV.VECVI, pzText.s, pdWidth.d)
   Declare   SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
+  Declare.s GetVariable(*psV.VECVI, pzVariable.s)
+  Declare   SetVariable(*psV.VECVI, pzVariable.s, pzValue.s)
+  Declare   RemoveVariable(*psV.VECVI, pzVariable.s)
   Declare.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *psRelative.VECVI_BLOCK = #Null)
   Declare.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGHT, *psRelative.VECVI_SECTION = #Null)
+  Declare.i ReplaceHeader(*psV.VECVI, *psBlock.VECVI_BLOCK)
+  Declare.i ReplaceFooter(*psV.VECVI, *psBlock.VECVI_BLOCK)
+  Declare.i AppendHeader(*psV.VECVI, *psBlock.VECVI_BLOCK)
+  Declare.i AppendFooter(*psV.VECVI, *psBlock.VECVI_BLOCK)
   Declare   TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
   Declare.d ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
   Declare   ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
@@ -1270,6 +1283,90 @@ Procedure _applyLineStyle(*psE.VECVI_ELEMENT)
 
 EndProcedure
 
+Procedure _appendHeaderFooter(*psV.VECVI, *psB.VECVI_BLOCK, piMode.i)
+; ----------------------------------------
+; internal   :: appends the given block to the header or footer
+; param      :: *psV   - VecVi structure
+;               *psB   - VecVi block to append to header
+;               piMode - wheter to append to the header or footer
+;                        1: header
+;                        2: footer
+; returns    :: (i) appending state
+;               0: error while appending
+;               1: appending successful
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iOldPagePosX,
+              iOldGlobPosX
+  Protected   *Target.VECVI_BLOCK
+  Protected   NewList sllElementsTemp.VECVI_ELEMENT()
+; ----------------------------------------
+  
+  ; //
+  ; return if block pointer is invalid
+  ; //
+  If *psB = 0
+    ProcedureReturn 0
+  EndIf
+  
+  ; //
+  ; determine wheter to use header or footer
+  ; //
+  If piMode = 1
+    *Target = @*psV\Header\Block
+  ElseIf piMode = 2
+    *Target = @*psV\Footer\Block
+  Else
+    ProcedureReturn 0
+  EndIf
+  
+  ; //
+  ; create temp copy of block elements
+  ; //
+  If Not CopyList(*psB\Elements(), sllElementsTemp())
+    ProcedureReturn 0
+  EndIf
+  
+  ; //
+  ; save current x positions for restoring later
+  ; //
+  iOldPagePosX = *psV\CurrPagePos\dX
+  iOldGlobPosX = *psV\CurrGlobPos\dX
+  
+  ; //
+  ; replace current x positions with the ones from the last element in the header or footer
+  ; //
+  LastElement(*Target\Elements())
+  *psV\CurrPagePos\dX = *Target\Elements()\PagePos\dX
+  *psV\CurrGlobPos\dX = *Target\Elements()\DrawPos\dX
+  
+  ; //
+  ; manually add linebreak to get x position back to left border
+  ; //
+  If AddElement(*Target\Elements())
+    _defTarget(*psV, piMode)
+    *Target\Elements()\iType   = #ELEMENTTYPE_LN
+    *Target\Elements()\d("Ln") = 0
+    _applyPosition(*psV, _defTarget(*psV), @*Target\Elements())
+    _defTarget(*psV, 0)
+  EndIf
+  
+  ; //
+  ; restore current x positions
+  ; //
+  *psV\CurrPagePos\dX = iOldPagePosX
+  *psV\CurrGlobPos\dX = iOldGlobPosX
+  
+  ; //
+  ; merge block into header or footer block and restore elements from temp copy
+  ; //
+  MergeLists(*psB\Elements(), *Target\Elements())
+  CopyList(sllElementsTemp(), *psB\Elements())
+  
+  ProcedureReturn 1
+  
+EndProcedure
+
 Procedure _drawTextCell(*psV.VECVI, *psT.VECVI_BLOCK)
 ; ----------------------------------------
 ; internal   :: drawing of a text cell (#ELEMENTTYPE_TEXTCELL).
@@ -2005,6 +2102,7 @@ Procedure.i _drawElements(*psV.VECVI, piStartPageRef.i, piE.i = 0)
 ; remarks    :: 
 ; ----------------------------------------
   Protected.i iOldPageRef 
+  Protected.s zText
   Protected   *Target.VECVI_BLOCK
 ; ----------------------------------------
   
@@ -2058,16 +2156,20 @@ Procedure.i _drawElements(*psV.VECVI, piStartPageRef.i, piE.i = 0)
     EndIf
     
     ; //
-    ; replace the page numbering tokens with the current page number and the total
-    ; page number for text elements.
+    ; replace variables and numbering tokens
     ; //
     If FindMapElement(*Target\Elements()\s(), "TextRaw")
+      zText = *Target\Elements()\s("TextRaw")
+      ForEach *Target\Variables()
+        zText = ReplaceString(zText, "{{" + MapKey(*Target\Variables()) + "}}", *Target\Variables())
+      Next
+      
       If *psV\Sections()\Pages()\iNb > -1
-        *Target\Elements()\s("Text") = ReplaceString(*Target\Elements()\s("TextRaw"), *psV\s("NbCurrent"), Str(*psV\Sections()\Pages()\iNb))
-        *Target\Elements()\s("Text") = ReplaceString(*Target\Elements()\s("Text"),    *psV\s("NbTotal"),   Str(*psV\iNbTotal))
-      Else
-        *Target\Elements()\s("Text") = *Target\Elements()\s("TextRaw")
+        zText = ReplaceString(zText, *psV\s("NbCurrent"), Str(*psV\Sections()\Pages()\iNb))
+        zText = ReplaceString(zText, *psV\s("NbTotal"),   Str(*psV\iNbTotal))
       EndIf
+      
+      *Target\Elements()\s("Text") = zText
     EndIf
     
     ; //
@@ -3101,6 +3203,11 @@ Procedure.i BeginBlock(*psV.VECVI, piPageBreak.i = #True)
   AddElement(*psV\Sections()\Blocks())
   
   ; //
+  ; copy current variables to the block
+  ; //
+  CopyMap(*psV\Variables(), *psV\Sections()\Blocks()\Variables())
+  
+  ; //
   ; pagebreak setting
   ; //
   *psV\Sections()\Blocks()\iPageBreak = piPageBreak
@@ -3136,6 +3243,11 @@ Procedure BeginHeader(*psV.VECVI)
   ; reset the header block
   ; //
   ClearList(*psV\Header\Block\Elements())
+
+  ; //
+  ; copy current variables to the block
+  ; //
+  CopyMap(*psV\Variables(), *psV\Header\Block\Variables())
 
   ; //
   ; reset x coordinates to left page margin as headers always
@@ -3178,6 +3290,11 @@ Procedure BeginFooter(*psV.VECVI)
   ; reset the footer block
   ; //
   ClearList(*psV\Footer\Block\Elements())
+
+  ; //
+  ; copy current variables to the block
+  ; //
+  CopyMap(*psV\Variables(), *psV\Footer\Block\Variables())
 
   ; //
   ; reset x coordinates to left page margin as footers always
@@ -3599,6 +3716,71 @@ Procedure SetYPos(*psV.VECVI, pdY.d, piRelative = #False)
     _applyPosition(*psV, *Target, @*Target\Elements())
   EndWith
     
+EndProcedure
+
+Procedure.d GetNamedPos(*psV.VECVI, pzName.s, piXY.i)
+; ----------------------------------------
+; public     :: returns the x or y position of the given named position
+; param      :: *psV   - VecVi structure
+;               pzName - name of position
+;               piXY   - which position to return
+;                        0: x
+;                        1: y
+; returns    :: (d) selected position or -1 if error
+; remarks    :: 
+; ----------------------------------------
+
+  If Not FindMapElement(*psV\NamedPos(), pzName)
+    ProcedureReturn -1
+  EndIf
+  
+  If piXY = 0
+    ProcedureReturn *psV\NamedPos(pzName)\dX
+  ElseIf piXY = 1
+    ProcedureReturn *psV\NamedPos(pzName)\dY
+  EndIf
+
+EndProcedure
+
+Procedure SetNamedPos(*psV.VECVI, pzName.s, pdX.d = -1, pdY.d = -1)
+; ----------------------------------------
+; public     :: registers a named x, y position on the page
+; param      :: *psV   - VecVi structure
+;               pzName - name for position
+;               pdX    - (S: -1) x position
+;                        -1: x position will be kept unchanged
+;               pdY - (S: -1) y position
+;                     -1: y position will be kept unchanged
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+
+  *psV\NamedPos(pzName)\dX = pdX
+  *psV\NamedPos(pzName)\dY = pdY
+
+EndProcedure
+
+Procedure UseNamedPos(*psV.VECVI, pzName.s)
+; ----------------------------------------
+; public     :: uses the named position
+; param      :: *psV   - VecVi structure
+;               pzName - name of position
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+
+  If Not FindMapElement(*psV\NamedPos(), pzName)
+    ProcedureReturn
+  EndIf
+  
+  If *psV\NamedPos(pzName)\dX > -1
+    SetXPos(*psV, *psV\NamedPos(pzName)\dX)
+  EndIf
+  
+  If *psV\NamedPos(pzName)\dY > -1
+    SetYPos(*psV, *psV\NamedPos(pzName)\dY)
+  EndIf
+  
 EndProcedure
 
 Procedure.d GetPageWidth(*psV.VECVI, piSection.i = 0, piNet = #True)
@@ -4139,6 +4321,50 @@ Procedure SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
   
 EndProcedure
 
+Procedure.s GetVariable(*psV.VECVI, pzVariable.s)
+; ----------------------------------------
+; public     :: gets the value of the given variable
+; param      :: *psV       - VecVi structure
+;               pzVariable - name of the variable
+; returns    :: (s) variable value
+; remarks    :: 
+; ----------------------------------------
+  
+  If FindMapElement(*psV\Variables(), pzVariable)
+    ProcedureReturn *psV\Variables(pzVariable)
+  EndIf
+
+EndProcedure
+
+Procedure SetVariable(*psV.VECVI, pzVariable.s, pzValue.s)
+; ----------------------------------------
+; public     :: sets a variable to the given value.
+; param      :: *psV       - VecVi structure
+;               pzVariable - name of the variable
+;               pzValue    - variable value
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+
+  *psV\Variables(pzVariable) = pzValue
+
+EndProcedure
+
+Procedure RemoveVariable(*psV.VECVI, pzVariable.s)
+; ----------------------------------------
+; public     :: removes a variable.
+; param      :: *psV       - VecVi structure
+;               pzVariable - name of the variable
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+  
+  If FindMapElement(*psV\Variables(), pzVariable)
+    DeleteMapElement(*psV\Variables(), pzVariable)
+  EndIf
+
+EndProcedure
+
 ;- >>> content manipulation <<<
 
 Procedure.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *psRelative.VECVI_BLOCK = #Null)
@@ -4153,22 +4379,41 @@ Procedure.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *ps
 ;                             #RIGHT:  add after current block
 ;               *psRelative - piPos relative to block
 ;                             if not given, position is determined from *psBlock
-; returns    :: pointer to the new block element
+; returns    :: (i) pointer to the new block element
 ; remarks    :: 
 ; ----------------------------------------
   Protected *sNew.VECVI_BLOCK
 ; ----------------------------------------
   
+  ; //
+  ; return if block pointer is invalid
+  ; //
+  If *psBlock = 0
+    ProcedureReturn 0
+  EndIf
+  
+  ; //
+  ; save current block list position
+  ; //
   PushListPosition(*psV\Sections()\Blocks())
   
+  ; //
+  ; create new block and copy the contents
+  ; //
   *sNew = AddElement(*psV\Sections()\Blocks())
   CopyStructure(*psBlock, *sNew, VECVI_BLOCK)
   
+  ; //
+  ; return when block doesn't need to be moved
+  ; //
   If *psRelative = #Null And (piPos = #LEFT Or piPos = #RIGHT)
     PopListPosition(*psV\Sections()\Blocks())
     ProcedureReturn *sNew
   EndIf
   
+  ; //
+  ; move block
+  ; //
   If piPos = #LEFT
     MoveElement(*psV\Sections()\Blocks(), #PB_List_Before, *psRelative)
   ElseIf piPos = #RIGHT
@@ -4178,7 +4423,15 @@ Procedure.i DuplicateBlock(*psV.VECVI, *psBlock.VECVI_BLOCK, piPos = #RIGHT, *ps
   ElseIf piPos = #BOTTOM
     MoveElement(*psV\Sections()\Blocks(), #PB_List_Last)
   EndIf
+
+  ; //
+  ; copy current variables to the block
+  ; //
+  CopyMap(*psV\Variables(), *psV\Sections()\Blocks()\Variables())
   
+  ; //
+  ; restore block list position
+  ; //
   PopListPosition(*psV\Sections()\Blocks())
   
   ProcedureReturn *sNew
@@ -4197,22 +4450,41 @@ Procedure.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGH
 ;                             #RIGHT:  add after current section
 ;               *psRelative - piPos relative to section
 ;                             if not given, position is determined from *psSection
-; returns    :: pointer to the new section element
+; returns    :: (i) pointer to the new section element
 ; remarks    :: 
 ; ----------------------------------------
   Protected *sNew.VECVI_SECTION
 ; ----------------------------------------
   
+  ; //
+  ; return if section pointer is invalid
+  ; //
+  If *psSection = 0
+    ProcedureReturn 0
+  EndIf
+  
+  ; //
+  ; save current section list position
+  ; //
   PushListPosition(*psV\Sections())
   
+  ; //
+  ; create new section and copy the contents
+  ; //
   *sNew = AddElement(*psV\Sections())
   CopyStructure(*psSection, *sNew, VECVI_SECTION)
   
+  ; //
+  ; return when section doesn't need to be moved
+  ; //
   If *psRelative = #Null And (piPos = #LEFT Or piPos = #RIGHT)
     PopListPosition(*psV\Sections())
     ProcedureReturn *sNew
   EndIf
   
+  ; //
+  ; move section
+  ; //
   If piPos = #LEFT
     MoveElement(*psV\Sections(), #PB_List_Before, *psRelative)
   ElseIf piPos = #RIGHT
@@ -4223,10 +4495,94 @@ Procedure.i DuplicateSection(*psV.VECVI, *psSection.VECVI_SECTION, piPos = #RIGH
     MoveElement(*psV\Sections(), #PB_List_Last)
   EndIf
   
+  ; //
+  ; copy current variables to all blocks in the section
+  ; //
+  PushListPosition(*psV\Sections()\Blocks())
+  ForEach *psV\Sections()\Blocks()
+    CopyMap(*psV\Variables(), *psV\Sections()\Blocks()\Variables())
+  Next
+  PopListPosition(*psV\Sections()\Blocks())
+  
+  ; //
+  ; restore section list position
+  ; //
   PopListPosition(*psV\Sections())
   
   ProcedureReturn *sNew
 
+EndProcedure
+
+Procedure.i ReplaceHeader(*psV.VECVI, *psBlock.VECVI_BLOCK)
+; ----------------------------------------
+; public     :: replaces the header with the given block.
+; param      :: *psV     - VecVi structure
+;               *psBlock - VecVi block to replace header with
+; returns    :: (i) replace state
+;               0: error while replacing
+;               1: replacing successful
+; remarks    :: 
+; ----------------------------------------
+  
+  If *psBlock = 0
+    ProcedureReturn 0
+  EndIf
+  
+  CopyStructure(*psBlock, *psV\Header\Block, VECVI_BLOCK)
+  
+  ProcedureReturn 1
+  
+EndProcedure
+
+Procedure ReplaceFooter(*psV.VECVI, *psBlock.VECVI_BLOCK)
+; ----------------------------------------
+; public     :: replaces the footer with the given block.
+; param      :: *psV     - VecVi structure
+;               *psBlock - VecVi block to replace footer with
+; returns    :: (i) replace state
+;               0: error while replacing
+;               1: replacing successful
+; remarks    :: 
+; ----------------------------------------
+  
+  If *psBlock = 0
+    ProcedureReturn 0
+  EndIf
+  
+  CopyStructure(*psBlock, *psV\Footer\Block, VECVI_BLOCK)
+  
+  ProcedureReturn 1
+  
+EndProcedure
+
+Procedure.i AppendHeader(*psV.VECVI, *psBlock.VECVI_BLOCK)
+; ----------------------------------------
+; public     :: appends the given block to the header
+; param      :: *psV     - VecVi structure
+;               *psBlock - VecVi block to append to header
+; returns    :: (i) appending state
+;               0: error while appending
+;               1: appending successful
+; remarks    :: 
+; ----------------------------------------
+  
+  ProcedureReturn _appendHeaderFooter(*psV, *psBlock, 1)
+  
+EndProcedure
+
+Procedure.i AppendFooter(*psV.VECVI, *psBlock.VECVI_BLOCK)
+; ----------------------------------------
+; public     :: appends the given block to the footer
+; param      :: *psV     - VecVi structure
+;               *psBlock - VecVi block to append to footer
+; returns    :: (i) appending state
+;               0: error while appending
+;               1: appending successful
+; remarks    :: 
+; ----------------------------------------
+  
+  ProcedureReturn _appendHeaderFooter(*psV, *psBlock, 2)
+  
 EndProcedure
 
 ;- >>> graphical elements <<<
