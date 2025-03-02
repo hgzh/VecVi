@@ -139,18 +139,25 @@ Procedure createVecVi()
   ; duplicate the first block and add it after the second block
   ; //
   VecVi::DuplicateBlock(*VecVi, *Block, VecVi::#RIGHT, *RelBlock)
-  
+
+  ; //
+  ; duplicate the first block and add it at the current position
+  ; //
+  VecVi::DuplicateBlock(*VecVi, *Block)
+
   ; //
   ; fourth block
   ; //
   VecVi::BeginBlock(*VecVi)
   VecVi::TextCell(*VecVi, 0, 5, "Now there is a manual page break. The new page will not be numbered.")
   VecVi::Ln(*VecVi)
-  
+
   ; //
-  ; duplicate the first block and add it at the current position
+  ; create a new block and append it to the header
   ; //
-  VecVi::DuplicateBlock(*VecVi, *Block)
+  *Block = VecVi::BeginBlock(*VecVi)
+  VecVi::TextCell(*VecVi, 0, 5, "This will be part of the header on the next page", VecVi::#NEWLINE, VecVi::#BOTTOM)
+  VecVi::AppendHeader(*VecVi, *Block)  
 
   ; //
   ; create a new footer for the page without numbering
@@ -170,13 +177,16 @@ Procedure createVecVi()
   VecVi::TextCell(*VecVi, 0, 5, "On this page, there will be no page breaks within a table.", VecVi::#BOTTOM)
   
   For i = 0 To 6
+    VecVi::SetVariable(*VecVi, "CELL1", "Var " + Str(i))
+    VecVi::SetVariable(*VecVi, "CELL2", Str(Random(10, 0)))
+    VecVi::SetVariable(*VecVi, "CELL3", "")
     VecVi::BeginBlock(*VecVi, #False)
     VecVi::SetLineColor(*VecVi, RGBA(Random(255), Random(255), Random(255), 255))
     For j = 0 To 6
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " foo " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bar " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bla " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " blub " + Str(j), VecVi::#NEWLINE, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL1}}", VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL2}}", VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL3}}", VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL4}}", VecVi::#NEWLINE, VecVi::#ALL)
     Next j
     VecVi::Ln(*VecVi, 10)
   Next i
@@ -241,6 +251,25 @@ Procedure createVecVi()
   ; duplicate the second section and add it at the current position
   ; //
   VecVi::DuplicateSection(*VecVi, *Section)
+  
+  ; //
+  ; create a new block and use it as header
+  ; //
+  *Block = VecVi::BeginBlock(*VecVi)
+  VecVi::TextCell(*VecVi, 0, 5, "This will be the new header on the next page.", VecVi::#NEWLINE)
+  VecVi::HorizontalLine(*VecVi, 20)
+  VecVi::ReplaceHeader(*VecVi, *Block)  
+  
+  ; //
+  ; next section is horizontal
+  ; //
+  VecVi::BeginSection(*VecVi, VecVi::#FORMAT_INHERIT, VecVi::#HORIZONTAL)
+  VecVi::BeginBlock(*VecVi)
+  VecVi::TextCell(*VecVi, 0, 5, "This is a horizontal page", VecVi::#NEWLINE)
+  VecVi::SetNamedPos(*VecVi, "test1", 50)
+  VecVi::TextCell(*VecVi, 20, 5, "Some text", VecVi::#RIGHT, VecVi::#ALL)
+  VecVi::UseNamedPos(*VecVi, "test1")
+  VecVi::TextCell(*VecVi, 0, 5, "another text", VecVi::#RIGHT, VecVi::#ALL)
   
 EndProcedure
 
