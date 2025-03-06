@@ -142,13 +142,13 @@ Scaling and offset only make sense in the context of canvas, image and gadget ou
 
 Scaling is done with ```VecVi::SetOutputScale()```.
 
-> SetOutputScale(*psV.VECVI, pdX.d = 1, pdY.d = 1)
+> VecVi::SetOutputScale(*psV.VECVI, pdX.d = 1, pdY.d = 1)
 
 You have to supply a relative scaling value for x and y axis. The original scaling can be restored by setting the scale to 1 for both axes.
 
 The offset can be set using ```VecVi::SetOutputOffset()```. The root position is always on the upper left corner of the output area.
 
-> SetOutputOffset(*psV.VECVI, piOffset.i, pdValue.d)
+> VecVi::SetOutputOffset(*psV.VECVI, piOffset.i, pdValue.d)
 
 The offset parameter takes one of the following values:
 - ```VecVi::#TOP```: set the top offset
@@ -164,8 +164,30 @@ After setting the offset target, you can specify the actual offset through the v
 
 # Customization
 ## Font
+VecVi's text elements support styling through fonts. Before using any text elements, you should provide a font definition for your VecVi document. This can be done by ```VecVi::SetFont()```.
+
+> VecVi::SetFont(*psV.VECVI, pzName.s, piStyle.i = 0, pdSize.d = 0)
+
+You can specify the font name, the font style (this matches PureBasic's constants for *LoadFont()* and a font size in millimeters.
+
+If you want to change the font, it is possible to call *SetFont()* again. If you only want to change one aspect of the current font (e.g. reducing the font size), you can use shorthand functions as follows:
+- ```VecVi::SetFontSize()```: change only the font size of the following elements
+- ```VecVi::SetFontStyle()```: change only the font style of the following elements
+
+For *SetFontStyle()*, you can specify ```0``` as the font style to deactivate any special styling.
+
+To change the text color, use ```VecVi::SetTextColor()```.
+
 ## Lines
+It is possible to set the color, width and segment style of all lines VecVi outputs. This applies to borders of cells and geometric elements and to horizontal lines, vertical lines, xy lines and curves as well. Line styling is controlled by the following functions:
+- ```VecVi::SetLineSize()```: change the width of the lines in the following elements
+- ```VecVi::SetLineColor()```: change the color of the lines in the following elements. Requires an rgba value.
+- ```VecVi::SetLineStyle()```: change the way the lines are drawn.
+
 ## Filling and background
+VecVi allows filling of cells and geometric forms. To specify the color used for this, you can use ```VecVi::SetFillColor()```.
+
+There are two types of background colors: the standard one is the background of the VecVi document's pages (the 'paper'), which natively is white. The other background is the 'desk color' for canvas output, which defaults to dark grey. You can specify both background colors using ```VecVi::SetBackColor()```.
 
 # Advanced functions
 ## Duplicating sections and blocks
