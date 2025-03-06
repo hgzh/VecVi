@@ -70,7 +70,7 @@ line style, line color and cell margins.
 
 ## Positioning
 To ease positioning, VecVi by default uses a relative positioning approach while defining elements. That means that the position of an element is determined
-by the position and size of the previously defined element. To control this, the VecVi elements (besides the line elements) have a ````piLn``` parameter,
+by the position and size of the previously defined element. To control this, the VecVi elements (besides the line elements) have a ```piLn``` parameter,
 that supports up to three modes regarding the position of the following element:
 - ```VecVi::#RIGHT```: move the next element to the right outer corner of the current element (change x position, keep y position unchanged)
 - ```VecVi::#BOTTOM```: move the next element to right below the current element (change y position, keep x position unchanged)
@@ -108,8 +108,53 @@ a new block or section is begun (with another call to a *Begin* function) or the
 
 # Output
 ## Output types
+VecVi supports the following output types:
+- ```VecVi::OutputCanvas()```: output the document to a PureBasic CanvasGadget
+- ```VecVi::OutputImage()```: draw the document to a PureBasic image object
+- ```VecVi::OutputWindow()```: draw the document on the window itself
+- ```VecVi::OutputPrinter()```: print the document directly
+- ```VecVi::OutputSVG()```: save the document as a svg file on the disk
+- ```VecVi::OutputPDF()```: save the document as a pdf file on the disk
+
+The same VecVi document can be used to output to different output types. This enables you to create a preview in a CanvasGadget before sending the document to the printer. For the canvas, image and window output, the output object has to be an already correctly initialized PureBasic object. For use with a printer, you'll have to create the printing job before using the output function. SVG and PDF output take a filename as parameter and output to the disk, nothing else has to be initialized before saving as a file.
+ 
 ## Multi page output
+Output types differ in how they support output of multiple pages. In general, there are three ways to handle multiple pages in the VecVi document while outputting:
+- *single*: only one page is shown at once
+- *multi*: multiple pages may be shown at once
+- *paged*: multiple pages are supported and the output supports 'real' pages
+
+Paged output is only supported by Printer and PDF output types. These output types implement a native concept of 'pages', so a VecVi document can be transformed accordingly. SVG requires single page output as there isn't such thing like pages in svg files. Therefore, you'll always have to specify a page you want to output when using the svg output type.
+
+Canvas, image and window output types accept both single and multi page output. Multiple page output is mimicked by displaying a page border and margin between the pages. To switch between multi and single page output for these output types, use ```VecVi:SetMultiPageOutput()```.
+
+> SetMultiPageOutput(*psV.VECVI, piOutput.i, pdMargin.d = 0)
+
+*SetMultiPageOutput* takes the VecVi structure, an output and a margin parameter to control the multi page output. The output parameter can have the following values:
+- ```#False```: multi page output deactivated, use single page output
+- ```VecVi::VERTICAL```: activate multi page output and display the pages in vertical direction
+- ```VecVi::HORIZONTAL```: activate multi page output and display the pages in horizontal direction
+
+The margin parameter specifies the distance between two page borders in multi page output.
+
 ## Scaling and offset
+Scaling and offset only make sense in the context of canvas, image and gadget output, but can be used also in other output types. You are able to scale the VecVi document and define the root starting position of the output. This is useful if you have canvas output enabled and want to allow the user to zoom in, out and move the document around with the mouse. All scaling and offset functions always apply to the whole document.
+
+Scaling is done with ```VecVi::SetOutputScale()```.
+
+> SetOutputScale(*psV.VECVI, pdX.d = 1, pdY.d = 1)
+
+You have to supply a relative scaling value for x and y axis. The original scaling can be restored by setting the scale to 1 for both axes.
+
+The offset can be set using ```VecVi::SetOutputOffset()```. The root position is always on the upper left corner of the output area.
+
+> SetOutputOffset(*psV.VECVI, piOffset.i, pdValue.d)
+
+The offset parameter takes one of the following values:
+- ```VecVi::#TOP```: set the top offset
+- ```VecVi::#LEFT```: set the left offset
+
+After setting the offset target, you can specify the actual offset through the value parameter. The initial offset is 0 for both top and left.
 
 # Pages
 ## Properties
