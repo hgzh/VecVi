@@ -157,10 +157,47 @@ The offset parameter takes one of the following values:
 After setting the offset target, you can specify the actual offset through the value parameter. The initial offset is 0 for both top and left.
 
 # Pages
-## Properties
+## Width and height
+There are two functions to get a page's width and height. Both are working in a similar way and take a section and a net size parameter.
+- ```VecVi::GetPageWidth()```
+- ```VecVi::GetPageHeight()```
+
+With the section parameter, it is possible to get the size of the pages in the section with the given index (first section is has the index 1). If it is ```0```, the functions will return the size of the current page.
+
+The net parameter controls wheter the page margins should be included in the returned value. If it is ```#True```, it will return the page size without top and bottom or left and right margins, so the remaining size for adding content after respecting the page's margins. For page height, it will also account for the size of header and footer. When given ```#False```, the absolute width or height of the page is returned, as defined in the format parameter of *BeginSection* or *Create*.
+
 ## Header and footer
+VecVi supports adding header and footer to pages. They will be displayed on every page and included in the calculation of the remaining page height, which is also important for determining where to set page breaks. Both header and footer consist of one single block. To start defining a header or a footer, use the following functions:
+- ```VecVi::BeginHeader()```
+- ```VecVi::BeginFooter()```
+
+Just like for sections and blocks, all elements that are defined after a *Begin* function are considered part of the header/footer, until another *Begin* function is called. The header and footer defined this way bill be displayed on all pages that are created afterwards. You can also call one of *BeginHeader* or *BeginFooter* again to define a new header or footer for the next page. To clear a header or footer, call the *Begin* function without specifying any element afterwards. For manipulating already defined headers and footers, see the chapter in the advanced section.
+
 ## Page breaks
+Page breaks happen under the following circumstances:
+- a new section is defined. Defining a new section will always cause a page break because it is possible to change format or orientation for the new section.
+- a new block is defined with disallowed page breaks and the width of the elements inside the block exceed the remaining vertical space of the page.
+- a new element is defined inside a block with allowed page breaks and the element's width exceed the remaining vertical space of the page.
+
+Forced page breaks inside a section are currently not supported. You'll have to create a new section for this.
+
 ## Page numbering
+Pages can be automatically numbered. The current page number and the total number of pages are available for usage inside VecVi text elements. This is possible via usage of tokens. Tokens represent the number of the current or the total number of pages and are replaced by the actual value while processing. To change the token, use ```VecVi::SetPageNumberingTokens()```.
+
+> VecVi::SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
+
+You can set both tokens at one. The initial tokens are ```{Nb}``` for the current page number and ```{NbTotal}``` for the page count. You can use any string as the token, and the token defined will be replaced in all occurrences on the page.
+
+Page numbering can be controlled on section level. For this, *BeginSection* supports a numbering parameter. Possible values are:
+- ```-1```: pages won't be numbered. If this is set for the first section, the page counter will remain at zero until the first page that is numbered (in another following section) is created.
+- ```0```: page numbering will continue from the value of the previous section. This is the standard behavior.
+- values higher than zero will be used as the page number of the first page in the section.
+
+Note: if page numbering is disabled for a section, the pages of the section will also not count for the total number of pages in the VecVi document. To determine the full amount of pages in a document including pages without numbering, you can use ```VecVi::GetPageCount()```:
+
+> VecVi::GetPageCount(*psV.VECVI, piSection.i = 0)
+
+The optional section parameter allows you to count only the pages inside the section width the specified index. If not set, the function will return the number of pages in the whole document.
 
 # Customization
 ## Font
