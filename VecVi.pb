@@ -146,6 +146,8 @@ Structure VECVI_IMAGE
   ; public     :: image management
   ; ----------------------------------------
   iHandle.i
+  zName.s
+  zRefPath.s
 EndStructure
 
 Structure VECVI_ELEMENT
@@ -275,6 +277,8 @@ EndStructure
   Declare.i Create(pzFormat.s, piOrientation.i)
   Declare   Process(*psV.VECVI)
   Declare   Free(*psV.VECVI)
+  Declare.i LoadFile(pzPath.s)
+  Declare.i SaveFile(*psV.VECVI, pzPath.s)
   Declare.i BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = #INHERIT, piNumbering = 0)
   Declare.i BeginBlock(*psV.VECVI, piPageBreak.i = #True)
   Declare   BeginHeader(*psV.VECVI)
@@ -320,6 +324,8 @@ EndStructure
   Declare.d GetCanvasOutputResolution(piCanvas.i)
   Declare.d GetTextWidth(*psV.VECVI, pzText.s)
   Declare.d GetParagraphHeight(*psV.VECVI, pzText.s, pdWidth.d)
+  Declare.s GetImageReferencePath(*psV.VECVI, pzName.s)
+  Declare   SetImageReferencePath(*psV.VECVI, pzName.s, pzPath.s)
   Declare   SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
   Declare.s GetVariable(*psV.VECVI, pzVariable.s)
   Declare   SetVariable(*psV.VECVI, pzVariable.s, pzValue.s)
@@ -332,7 +338,7 @@ EndStructure
   Declare.i AppendFooter(*psV.VECVI, *psBlock.VECVI_BLOCK)
   Declare   TextCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
   Declare.d ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piFill.i = #False)
-  Declare   ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
+  Declare   ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i = -1, pzName.s = "", piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
   Declare   HorizontalLine(*psV.VECVI, pdW.d, piHAlign.i = #LEFT)
   Declare   VerticalLine(*psV.VECVI, pdH.d, piVAlign.i = #TOP)
   Declare   XYLine(*psV.VECVI, pdDeltaX.d, pdDeltaY.d)
@@ -1640,7 +1646,9 @@ Procedure _drawImageCell(*psV.VECVI, *psT.VECVI_BLOCK)
     EndIf
     
     MovePathCursor(dImageX, dImageY)
-    DrawVectorImage(ImageID(\i("Image")), 255, \d("ImageW"), \d("ImageH"))
+    If \i("Image") > 0
+      DrawVectorImage(ImageID(\i("Image")), 255, \d("ImageW"), \d("ImageH"))
+    EndIf
     
   EndWith
   
@@ -2867,6 +2875,146 @@ Procedure _process(*psV.VECVI)
   
 EndProcedure
 
+Procedure _replaceHandle(*psB.VECVI_BLOCK, pzName.s, piOldHandle, piNewHandle.i)
+; ----------------------------------------
+; internal   :: replaces the font handle in every element of the block
+; param      :: *psB        - VecVi block
+;               pzName      - name of the item containing the handle
+;               piOldHandle - old handle
+;               piNewHandle - new handle
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+
+  ForEach *psB\Elements()
+    If FindMapElement(*psB\Elements()\i(), pzName) And *psB\Elements()\i(pzName) = piOldHandle
+      *psB\Elements()\i(pzName) = piNewHandle
+    EndIf
+  Next
+
+EndProcedure
+
+Procedure _reloadFonts(*psV.VECVI)
+; ----------------------------------------
+; internal   :: reloads the defined fonts
+; param      :: *psV - VecVi structure
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iOldHandle
+; ----------------------------------------
+
+  ForEach *psV\Fonts()
+    ; //
+    ; save old handle for replacements
+    ; //
+    iOldHandle = *psV\Fonts()\iHandle
+    
+    ; //
+    ; free old font handle if valid
+    ; //
+    If IsFont(iOldHandle)
+      FreeFont(iOldHandle)
+    EndIf
+    
+    ; //
+    ; reload font
+    ; //
+    *psV\Fonts()\iHandle = LoadFont(#PB_Any, *psV\Fonts()\zName, 1, *psV\Fonts()\iStyle)
+    
+    ; //
+    ; replace handle in current font
+    ; //
+    If *psV\i("CurrentFont") = iOldHandle
+      *psV\i("CurrentFont") = *psV\Fonts()\iHandle
+    EndIf
+    
+    ; //
+    ; replace handle in section
+    ; //
+    ForEach *psV\Sections()
+      ; //
+      ; replace in blocks
+      ; //
+      ForEach *psV\Sections()\Blocks()
+        _replaceHandle(@*psV\Sections()\Blocks(), "Font", iOldHandle, *psV\Fonts()\iHandle)
+      Next
+      
+      ; //
+      ; replace in section header and footer
+      ; //
+      _replaceHandle(*psV\Sections()\Header\Block, "Font", iOldHandle, *psV\Fonts()\iHandle)
+      _replaceHandle(*psV\Sections()\Footer\Block, "Font", iOldHandle, *psV\Fonts()\iHandle)
+    Next
+    
+    ; //
+    ; replace handle in global header/footer
+    ; //
+    _replaceHandle(*psV\Header\Block, "Font", iOldHandle, *psV\Fonts()\iHandle)
+    _replaceHandle(*psV\Footer\Block, "Font", iOldHandle, *psV\Fonts()\iHandle)    
+  Next
+
+EndProcedure
+
+Procedure _reloadImages(*psV.VECVI)
+; ----------------------------------------
+; internal   :: reloads the defined images
+; param      :: *psV - VecVi structure
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iOldHandle
+; ----------------------------------------
+
+  ForEach *psV\Images()
+    ; //
+    ; save old handle for replacements
+    ; //
+    iOldHandle = *psV\Images()\iHandle
+    
+    ; //
+    ; free old image handle if valid
+    ; //
+    If IsImage(iOldHandle)
+      FreeImage(iOldHandle)
+    EndIf
+    
+    ; //
+    ; reload image if reference path is set or set handle to -1 to deactivate image drawing
+    ; //
+    If *psV\Images()\zRefPath <> ""
+      *psV\Images()\iHandle     = LoadImage(#PB_Any, *psV\Images()\zRefPath)
+    Else
+      *psV\Images()\iHandle     = -1
+    EndIf
+    
+    ; //
+    ; replace handle in section
+    ; //
+    ForEach *psV\Sections()
+      ; //
+      ; replace in blocks
+      ; //
+      ForEach *psV\Sections()\Blocks()
+        _replaceHandle(@*psV\Sections()\Blocks(), "Image", iOldHandle, *psV\Images()\iHandle)
+      Next
+      
+      ; //
+      ; replace in section header and footer
+      ; //
+      _replaceHandle(*psV\Sections()\Header\Block, "Image", iOldHandle, *psV\Images()\iHandle)
+      _replaceHandle(*psV\Sections()\Footer\Block, "Image", iOldHandle, *psV\Images()\iHandle)
+    Next
+    
+    ; //
+    ; replace handle in global header/footer
+    ; //
+    _replaceHandle(*psV\Header\Block, "Image", iOldHandle, *psV\Images()\iHandle)
+    _replaceHandle(*psV\Footer\Block, "Image", iOldHandle, *psV\Images()\iHandle)    
+  Next
+
+EndProcedure
+
 ;- >>> basic functions <<<
 
 Procedure.i Create(pzFormat.s, piOrientation.i)
@@ -3007,6 +3155,103 @@ Procedure Free(*psV.VECVI)
   
 EndProcedure
 
+Procedure.i LoadFile(pzPath.s)
+; ----------------------------------------
+; public     :: loads VecVi data from a file
+; param      :: pzPath - file path
+; returns    :: (i) pointer to VecVi structure or 0 if error
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iJSON
+  Protected   *sVecVi.VECVI
+; ----------------------------------------
+  
+  ; //
+  ; load JSON file
+  ; //
+  iJSON = LoadJSON(#PB_Any, pzPath)
+  If Not IsJSON(iJSON)
+    FreeJSON(iJSON)
+    ProcedureReturn 0
+  EndIf
+ 
+  ; //
+  ; allocate the main structure and extract json data
+  ; //
+  *sVecVi = AllocateStructure(VECVI)
+  If *sVecVi = 0
+    FreeJSON(iJSON)
+    ProcedureReturn 0
+  EndIf
+  ExtractJSONStructure(JSONValue(iJSON), *sVecVi, VECVI)
+  
+  ; //
+  ; free JSON resources
+  ; //
+  FreeJSON(iJSON)
+  
+  ; //
+  ; reload fonts and images
+  ; //
+  _reloadFonts(*sVecVi)
+  _reloadImages(*sVecVi)
+  
+  ; //
+  ; process
+  ; //
+  _process(*sVecVi)
+  *sVecVi\i("NoReprocessing") = 1
+
+  ; //
+  ; return pointer
+  ; //
+  ProcedureReturn *sVecVi
+
+EndProcedure
+
+Procedure.i SaveFile(*psV.VECVI, pzPath.s)
+; ----------------------------------------
+; public     :: saves VecVi data to a json file
+; param      :: *psV   - VecVi structure
+;               pzPath - file path
+; returns    :: (i) save success
+;               0: error while saving
+;               1: saving succeeded
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iJSON
+; ----------------------------------------
+  
+  ; //
+  ; create JSON and insert data
+  ; //
+  iJSON = CreateJSON(#PB_Any)
+  If Not IsJSON(iJSON)
+    FreeJSON(iJSON)
+    ProcedureReturn 0
+  EndIf
+  InsertJSONStructure(JSONValue(iJSON), *psV, VECVI)
+  
+  ; //
+  ; save JSON to file
+  ; //
+  If Not SaveJSON(iJSON, pzPath)
+    FreeJSON(iJSON)
+    ProcedureReturn 0
+  EndIf
+  
+  ; //
+  ; free JSON resources
+  ; //
+  FreeJSON(iJSON)
+  
+  ; //
+  ; return success
+  ; //
+  ProcedureReturn 1
+
+EndProcedure
+
 ;- >>> area definition <<<
 
 Procedure.i BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation.i = #INHERIT, piNumbering = 0)
@@ -3023,7 +3268,7 @@ Procedure.i BeginSection(*psV.VECVI, pzFormat.s = #FORMAT_INHERIT, piOrientation
 ;                               -1: no page numbering
 ;                                0: resume page numbering from previous section
 ;                               >0: start value for page numbering in this section
-; returns    :: pointer to the new section element
+; returns    :: (i) pointer to the new section element
 ; remarks    :: 
 ; ----------------------------------------
   Protected.d dOldPagePos
@@ -3118,7 +3363,7 @@ Procedure.i BeginBlock(*psV.VECVI, piPageBreak.i = #True)
 ;               piPageBreak - (S: #True) wheter to accept page breaks within this block
 ;                             #True:  accept page breaks
 ;                             #False: disallow page breaks
-; returns    :: pointer to the new block element
+; returns    :: (i) pointer to the new block element
 ; remarks    :: 
 ; ----------------------------------------
   Protected.d dOldPagePos
@@ -4225,6 +4470,41 @@ Procedure.d GetParagraphHeight(*psV.VECVI, pzText.s, pdWidth.d)
   
 EndProcedure
 
+Procedure.s GetImageReferencePath(*psV.VECVI, pzName.s)
+; ----------------------------------------
+; public     :: gets the reference path to the given image
+; param      :: *psV    - VecVi structure
+;               pzName  - image name
+; returns    :: (s) reference path
+; remarks    :: 
+; ----------------------------------------
+
+  ForEach *psV\Images()
+    If *psV\Images()\zName = pzName
+      ProcedureReturn *psV\Images()\zRefPath
+    EndIf
+  Next
+
+EndProcedure
+
+Procedure SetImageReferencePath(*psV.VECVI, pzName.s, pzPath.s)
+; ----------------------------------------
+; public     :: sets a reference path to the image if a reload is needed
+; param      :: *psV    - VecVi structure
+;               pzName  - image name
+;               pzPath  - reference path
+; returns    :: (nothing)
+; remarks    :: 
+; ----------------------------------------
+
+  ForEach *psV\Images()
+    If *psV\Images()\zName = pzName
+      *psV\Images()\zRefPath = pzPath
+    EndIf
+  Next
+
+EndProcedure
+
 Procedure SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
 ; ----------------------------------------
 ; public     :: sets the tokens which are replaced by the page numbering.
@@ -4656,7 +4936,7 @@ Procedure.d ParagraphCell(*psV.VECVI, pdW.d, pdH.d, pzText.s, piLn.i = #RIGHT, p
     
 EndProcedure
 
-Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i, piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
+Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i = -1, pzName.s = "", piLn.i = #RIGHT, piBorder.i = #False, piHAlign.i = #LEFT, piVAlign.i = #CENTER, piFill.i = #False)
 ; ----------------------------------------
 ; public     :: creates a new text cell on the current block.
 ; param      :: *psV     - VecVi structure
@@ -4665,7 +4945,9 @@ Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i,
 ;               pdH      - height of the cell
 ;               pdImageW - width of the image in the cell
 ;               pdImageH - height of the image in the cell
-;               piImage  - cell image, has to be a PB Image object
+;               piImage  - (S: -1) cell image
+;                          can be a PB Image object, if -1, the image with the given name will be used
+;               pzName   - (S: '') name of the image
 ;               piLn     - (S: #RIGHT) where to set the position after the cell
 ;                          #RIGHT:   x to the right border of the cell, y keeps unchanged
 ;                          #BOTTOM:  y to the bottom border of the cell, x keeps unchanged
@@ -4697,11 +4979,23 @@ Procedure ImageCell(*psV.VECVI, pdW.d, pdH.d, pdImageW.d, pdImageH.d, piImage.i,
 ; ----------------------------------------
   
   ; //
-  ; create a copy of the image to allow disallocation
+  ; check if image is already loaded
   ; //
-  AddElement(*psV\Images())
-  *psV\Images()\iHandle = CopyImage(piImage, #PB_Any)
-  piImage = *psV\Images()\iHandle
+  Repeat
+    ForEach *psV\Images()
+      If pzName <> "" And *psV\Images()\zName = pzName
+        piImage = *psV\Images()\iHandle
+        Break 2
+      EndIf
+    Next
+    ; //
+    ; create a copy of the image to allow disallocation
+    ; //
+    AddElement(*psV\Images())
+    *psV\Images()\iHandle = CopyImage(piImage, #PB_Any)
+    *psV\Images()\zName   = pzName
+    piImage = *psV\Images()\iHandle
+  Until 1
   
   *Target = _defTarget(*psV)
   AddElement(*Target\Elements())
