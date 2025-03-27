@@ -28,11 +28,24 @@ Runtime Enumeration Toolbar
   #TBB_PAGEN
   #TBB_PDF
   #TBB_SVG
+  #TBB_SAVE
+  #TBB_LOAD
 EndEnumeration
+
+Procedure initVecVi()
+
+  VecVi::Process(*VecVi)
+  
+  giCurPage = 1
+  giMaxPage = VecVi::GetPageCount(*VecVi)
+  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, giCurPage)
+  
+EndProcedure
 
 Procedure createVecVi()
   Protected.i i,
-              j
+              j,
+              iImage
   Protected.s zText
   Protected *Block,
             *RelBlock,
@@ -212,7 +225,9 @@ Procedure createVecVi()
   ; //
   ; image cell
   ; //
-  VecVi::ImageCell(*VecVi, 0, 30, 80, 15, LoadImage(#PB_Any, #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp"), VecVi::#NEWLINE, VecVi::#ALL)
+  iImage = LoadImage(#PB_Any, #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp")
+  VecVi::ImageCell(*VecVi, 0, 30, 80, 15, iImage, "purebasic", VecVi::#NEWLINE, VecVi::#ALL)
+  VecVi::SetImageReferencePath(*VecVi, "purebasic", #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp")
   VecVi::Ln(*VecVi, 5)
   
   ; //
@@ -390,6 +405,30 @@ Procedure svgDocument()
   
 EndProcedure
 
+Procedure saveData()
+  Protected.s zFile
+    
+  zFile = SaveFileRequester("save data", GetTemporaryDirectory(), "JSON|*.json", 0)
+  If zFile
+    If VecVi::SaveFile(*VecVi, zFile + ".json") > 0
+      RunProgram(zFile + ".json")
+    EndIf
+  EndIf
+  
+EndProcedure
+
+Procedure loadData()
+  Protected.s zFile
+    
+  zFile = OpenFileRequester("load data", GetTemporaryDirectory(), "JSON|*.json", 0)
+  If zFile
+    VecVi::Free(*VecVi)
+    *VecVi = VecVi::LoadFile(zFile)
+    VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, giCurPage)
+  EndIf
+  
+EndProcedure
+
 Procedure switchOutputMode()
   
   If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
@@ -475,16 +514,16 @@ Procedure main()
     ToolBarSeparator()
     ToolBarImageButton(#TBB_PAGEP, 0, #PB_ToolBar_Normal, "Previous Page")
     ToolBarImageButton(#TBB_PAGEN, 0, #PB_ToolBar_Normal, "Next Page")
+    ToolBarSeparator()
     ToolBarImageButton(#TBB_PDF, 0, #PB_ToolBar_Normal, "PDF")
     ToolBarImageButton(#TBB_SVG, 0, #PB_ToolBar_Normal, "SVG")
+    ToolBarSeparator()
+    ToolBarImageButton(#TBB_SAVE, 0, #PB_ToolBar_Normal, "Save")
+    ToolBarImageButton(#TBB_LOAD, 0, #PB_ToolBar_Normal, "Load")
   EndIf
   
   gdRes = VecVi::GetCanvasOutputResolution(#CNV_PREVIEW) * 0.05
 
-  createVecVi()
-  
-  VecVi::Process(*VecVi)
-  
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_MouseWheel)
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_LeftButtonDown)
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_LeftButtonUp)
@@ -500,12 +539,13 @@ Procedure main()
   BindEvent(#PB_Event_Menu, @stepPage(), #WIN_MAIN, #TBB_PAGEP)
   BindEvent(#PB_Event_Menu, @pdfDocument(), #WIN_MAIN, #TBB_PDF)
   BindEvent(#PB_Event_Menu, @svgDocument(), #WIN_MAIN, #TBB_SVG)
+  BindEvent(#PB_Event_Menu, @saveData(), #WIN_MAIN, #TBB_SAVE)
+  BindEvent(#PB_Event_Menu, @loadData(), #WIN_MAIN, #TBB_LOAD)
   
-  BindEvent(#PB_Event_SizeWindow, @simpleRedraw(), #WIN_MAIN)
-  
-  giCurPage = 1
-  giMaxPage = VecVi::GetPageCount(*VecVi)
-  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, giCurPage)  
+  BindEvent(#PB_Event_SizeWindow, @simpleRedraw(), #WIN_MAIN)  
+
+  createVecVi()
+  initVecVi()
   
   Repeat
     iEvent = WaitWindowEvent()
