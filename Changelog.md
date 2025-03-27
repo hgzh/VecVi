@@ -78,3 +78,12 @@
 - added GetParagraphHeight()
 - changed ParagraphCell() to return the height of the new paragraph cell
 - fixed bug with line numbering and empty sections
+
+**v.1.20 (???)**
+- added ReplaceHeader(), ReplaceFooter(), AppendHeader(), AppendFooter()
+- added variable support with GetVariable(), SetVariable(), RemoveVariable()
+- added named position support with GetNamedPos(), SetNamedPos(), UseNamedPos()
+- added LoadFile()/SaveFile()
+- added pzName parameter to ImageCell()
+- added GetImageReferencePath()/SetImageReferencePath()
+- changed internal image handling to load the same image only once
