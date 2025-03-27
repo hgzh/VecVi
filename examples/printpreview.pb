@@ -1,4 +1,4 @@
-﻿XIncludeFile "../VecVi.pb"
+﻿XIncludeFile "../src/VecVi.pb"
 
 EnableExplicit
 
