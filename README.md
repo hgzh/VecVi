@@ -224,6 +224,22 @@ To determine the full amount of pages in a document including pages without numb
 The optional section parameter allows you to count only the pages inside the section width the specified index.
 If not set, the function will return the number of pages in the whole document.
 
+# Images
+VecVi supports image transclusion inside documents using ```VecVi::ImageCell()```. This function requires the image you want to include in the document to be
+a PureBasic Image object. This allows maximum flexibility in how you create the image: by loading it from a file, downloading it or generating it on the fly.
+You may assign a name to the image you include to identify it later trough a parameter to *ImageCell*. If you reuse a name in another image cell, the image
+assigned to the original ImageCell will be used also for the new one. This avoids loading the same image multiple times, while size and position remain flexible.
+
+The downside of VecVi's image handling is that PureBasic Image objects are not persistent after saving the VecVi structure to a file and loading it again, causing
+an image that is only available in memory on runtime to disappear after reloading the structure from a file. If you want images to survive file saving and loading,
+you have to assign a reference path to it where VecVi can load it from on loading the structure. This is possible through ```VecVi::SetImageReferencePath()```.
+
+> VecVi::SetImageReferencePath(*psV.VECVI, pzName.s, pzPath.s)
+
+This function takes the name assigned to the image and sets a path to an image file where the image could be reloaded from if needed. On reload of the VecVi structure,
+VecVi will load the file and use it in every image cell where the image name is referenced. You have to take care that the required image decoders are loaded in your
+program, VecVi doesn't do that for you. To check which path is referenced to an image with a given name, use ```VecVi::GetImageReferencePath()```.
+
 # Customization
 ## Font
 VecVi's text elements support styling through fonts. Before using any text elements, you should provide a font definition for your VecVi document.
@@ -339,3 +355,17 @@ The XY parameter controls which axis position is returned: ```0``` will return t
 To apply a named position during element definition, use ```VecVi::UseNamedPos()```. The position will then be determined like described above.
 
 Named positions work on global level: they are the same in the whole document and for all sections and blocks.
+
+## Saving and loading to/from a file
+To save the VecVi structure to a file on the disk, ```VecVi::SaveFile()``` and ```VecVi::LoadFile()``` are supported.
+
+> VecVi::SaveFile(*psV.VECVI, pzPath.s)
+>
+> *VecVi = VecVi::LoadFile(pzPath.s)
+
+*SaveFile* saves the current state of the VecVi structure to a json file. You can call it at any time and as often as you want after the VecVi structure is
+correctly allocated.
+
+*LoadFile* takes a file path as the only parameter and tries to load the json data back into the VecVi structure. On success, it returns the pointer to the
+structure, and zero otherwise. While loading, fonts and images will be reloaded if possible. For fonts, VecVi automatically saves all required information
+to reload. For images you'll have to set a reference path for images you want to reload as described in the Image chapter.
