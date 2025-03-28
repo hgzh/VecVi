@@ -1,4 +1,4 @@
-﻿XIncludeFile "../VecVi.pb"
+﻿XIncludeFile "../src/VecVi.pb"
 
 EnableExplicit
 
@@ -28,11 +28,24 @@ Runtime Enumeration Toolbar
   #TBB_PAGEN
   #TBB_PDF
   #TBB_SVG
+  #TBB_SAVE
+  #TBB_LOAD
 EndEnumeration
+
+Procedure initVecVi()
+
+  VecVi::Process(*VecVi)
+  
+  giCurPage = 1
+  giMaxPage = VecVi::GetPageCount(*VecVi)
+  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, giCurPage)
+  
+EndProcedure
 
 Procedure createVecVi()
   Protected.i i,
-              j
+              j,
+              iImage
   Protected.s zText
   Protected *Block,
             *RelBlock,
@@ -139,18 +152,25 @@ Procedure createVecVi()
   ; duplicate the first block and add it after the second block
   ; //
   VecVi::DuplicateBlock(*VecVi, *Block, VecVi::#RIGHT, *RelBlock)
-  
+
+  ; //
+  ; duplicate the first block and add it at the current position
+  ; //
+  VecVi::DuplicateBlock(*VecVi, *Block)
+
   ; //
   ; fourth block
   ; //
   VecVi::BeginBlock(*VecVi)
   VecVi::TextCell(*VecVi, 0, 5, "Now there is a manual page break. The new page will not be numbered.")
   VecVi::Ln(*VecVi)
-  
+
   ; //
-  ; duplicate the first block and add it at the current position
+  ; create a new block and append it to the header
   ; //
-  VecVi::DuplicateBlock(*VecVi, *Block)
+  *Block = VecVi::BeginBlock(*VecVi)
+  VecVi::TextCell(*VecVi, 0, 5, "This will be part of the header on the next page", VecVi::#NEWLINE, VecVi::#BOTTOM)
+  VecVi::AppendHeader(*VecVi, *Block)  
 
   ; //
   ; create a new footer for the page without numbering
@@ -170,13 +190,16 @@ Procedure createVecVi()
   VecVi::TextCell(*VecVi, 0, 5, "On this page, there will be no page breaks within a table.", VecVi::#BOTTOM)
   
   For i = 0 To 6
+    VecVi::SetVariable(*VecVi, "CELL1", "Var " + Str(i))
+    VecVi::SetVariable(*VecVi, "CELL2", Str(Random(10, 0)))
+    VecVi::SetVariable(*VecVi, "CELL3", "")
     VecVi::BeginBlock(*VecVi, #False)
     VecVi::SetLineColor(*VecVi, RGBA(Random(255), Random(255), Random(255), 255))
     For j = 0 To 6
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " foo " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bar " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " bla " + Str(j), VecVi::#RIGHT, VecVi::#ALL)
-      VecVi::TextCell(*VecVi, 20, 5, Str(i) + " blub " + Str(j), VecVi::#NEWLINE, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL1}}", VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL2}}", VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL3}}", VecVi::#RIGHT, VecVi::#ALL)
+      VecVi::TextCell(*VecVi, 20, 5, "{{CELL4}}", VecVi::#NEWLINE, VecVi::#ALL)
     Next j
     VecVi::Ln(*VecVi, 10)
   Next i
@@ -202,7 +225,9 @@ Procedure createVecVi()
   ; //
   ; image cell
   ; //
-  VecVi::ImageCell(*VecVi, 0, 30, 80, 15, LoadImage(#PB_Any, #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp"), VecVi::#NEWLINE, VecVi::#ALL)
+  iImage = LoadImage(#PB_Any, #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp")
+  VecVi::ImageCell(*VecVi, 0, 30, 80, 15, iImage, "purebasic", VecVi::#NEWLINE, VecVi::#ALL)
+  VecVi::SetImageReferencePath(*VecVi, "purebasic", #PB_Compiler_Home + "Examples\Sources\Data\PureBasicLogo.bmp")
   VecVi::Ln(*VecVi, 5)
   
   ; //
@@ -241,6 +266,25 @@ Procedure createVecVi()
   ; duplicate the second section and add it at the current position
   ; //
   VecVi::DuplicateSection(*VecVi, *Section)
+  
+  ; //
+  ; create a new block and use it as header
+  ; //
+  *Block = VecVi::BeginBlock(*VecVi)
+  VecVi::TextCell(*VecVi, 0, 5, "This will be the new header on the next page.", VecVi::#NEWLINE)
+  VecVi::HorizontalLine(*VecVi, 20)
+  VecVi::ReplaceHeader(*VecVi, *Block)  
+  
+  ; //
+  ; next section is horizontal
+  ; //
+  VecVi::BeginSection(*VecVi, VecVi::#FORMAT_INHERIT, VecVi::#HORIZONTAL)
+  VecVi::BeginBlock(*VecVi)
+  VecVi::TextCell(*VecVi, 0, 5, "This is a horizontal page", VecVi::#NEWLINE)
+  VecVi::SetNamedPos(*VecVi, "test1", 50)
+  VecVi::TextCell(*VecVi, 20, 5, "Some text", VecVi::#RIGHT, VecVi::#ALL)
+  VecVi::UseNamedPos(*VecVi, "test1")
+  VecVi::TextCell(*VecVi, 0, 5, "another text", VecVi::#RIGHT, VecVi::#ALL)
   
 EndProcedure
 
@@ -361,6 +405,30 @@ Procedure svgDocument()
   
 EndProcedure
 
+Procedure saveData()
+  Protected.s zFile
+    
+  zFile = SaveFileRequester("save data", GetTemporaryDirectory(), "JSON|*.json", 0)
+  If zFile
+    If VecVi::SaveFile(*VecVi, zFile + ".json") > 0
+      RunProgram(zFile + ".json")
+    EndIf
+  EndIf
+  
+EndProcedure
+
+Procedure loadData()
+  Protected.s zFile
+    
+  zFile = OpenFileRequester("load data", GetTemporaryDirectory(), "JSON|*.json", 0)
+  If zFile
+    VecVi::Free(*VecVi)
+    *VecVi = VecVi::LoadFile(zFile)
+    VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, giCurPage)
+  EndIf
+  
+EndProcedure
+
 Procedure switchOutputMode()
   
   If GetToolBarButtonState(#TBA_MAIN, #TBB_SINGLE) = 1
@@ -446,16 +514,16 @@ Procedure main()
     ToolBarSeparator()
     ToolBarImageButton(#TBB_PAGEP, 0, #PB_ToolBar_Normal, "Previous Page")
     ToolBarImageButton(#TBB_PAGEN, 0, #PB_ToolBar_Normal, "Next Page")
+    ToolBarSeparator()
     ToolBarImageButton(#TBB_PDF, 0, #PB_ToolBar_Normal, "PDF")
     ToolBarImageButton(#TBB_SVG, 0, #PB_ToolBar_Normal, "SVG")
+    ToolBarSeparator()
+    ToolBarImageButton(#TBB_SAVE, 0, #PB_ToolBar_Normal, "Save")
+    ToolBarImageButton(#TBB_LOAD, 0, #PB_ToolBar_Normal, "Load")
   EndIf
   
   gdRes = VecVi::GetCanvasOutputResolution(#CNV_PREVIEW) * 0.05
 
-  createVecVi()
-  
-  VecVi::Process(*VecVi)
-  
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_MouseWheel)
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_LeftButtonDown)
   BindGadgetEvent(#CNV_PREVIEW, @move(), #PB_EventType_LeftButtonUp)
@@ -471,12 +539,13 @@ Procedure main()
   BindEvent(#PB_Event_Menu, @stepPage(), #WIN_MAIN, #TBB_PAGEP)
   BindEvent(#PB_Event_Menu, @pdfDocument(), #WIN_MAIN, #TBB_PDF)
   BindEvent(#PB_Event_Menu, @svgDocument(), #WIN_MAIN, #TBB_SVG)
+  BindEvent(#PB_Event_Menu, @saveData(), #WIN_MAIN, #TBB_SAVE)
+  BindEvent(#PB_Event_Menu, @loadData(), #WIN_MAIN, #TBB_LOAD)
   
-  BindEvent(#PB_Event_SizeWindow, @simpleRedraw(), #WIN_MAIN)
-  
-  giCurPage = 1
-  giMaxPage = VecVi::GetPageCount(*VecVi)
-  VecVi::OutputCanvas(*VecVi, #CNV_PREVIEW, giCurPage)  
+  BindEvent(#PB_Event_SizeWindow, @simpleRedraw(), #WIN_MAIN)  
+
+  createVecVi()
+  initVecVi()
   
   Repeat
     iEvent = WaitWindowEvent()
