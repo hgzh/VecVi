@@ -79,7 +79,7 @@
 - changed ParagraphCell() to return the height of the new paragraph cell
 - fixed bug with line numbering and empty sections
 
-**v.1.20 (???)**
+**v.1.20 (2025-03-28)**
 - added ReplaceHeader(), ReplaceFooter(), AppendHeader(), AppendFooter()
 - added variable support with GetVariable(), SetVariable(), RemoveVariable()
 - added named position support with GetNamedPos(), SetNamedPos(), UseNamedPos()
