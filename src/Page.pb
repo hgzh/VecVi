@@ -160,6 +160,39 @@ Procedure SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
   
 EndProcedure
 
+Procedure.i GetLastPageNumber(*psV.VECVI, piSection.i = 0)
+; ----------------------------------------
+; public     :: returns the last page numbering number
+; param      :: *psV     - VecVi structure
+;               piSection - (S: 0) get the last page number for the specified section only
+;                           if 0, return for all sections, otherwise range: 1 - ...
+; returns    :: (i) page number
+; remarks    :: 
+; ----------------------------------------
+  Protected.i iNb
+; ----------------------------------------
+  
+  If piSection = 0
+    ProcedureReturn *psV\iNbCurrent
+  Else
+    PushListPosition(*psV\Sections())
+    ForEach *psV\Sections()
+      If *psV\Sections()\iNr = piSection
+        PushListPosition(*psV\Sections()\Pages())
+        If LastElement(*psV\Sections()\Pages())
+          iNb = *psV\Sections()\Pages()\iNb
+        EndIf
+        PopListPosition(*psV\Sections()\Pages())
+        Break
+      EndIf
+    Next
+    PopListPosition(*psV\Sections())
+  EndIf
+  
+  ProcedureReturn iNb
+
+EndProcedure
+
 Procedure.i GetSectionCount(*psV.VECVI)
 ; ----------------------------------------
 ; public     :: returns the number of sections in the current output

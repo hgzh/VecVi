@@ -294,6 +294,7 @@ EndStructure
   Declare.s GetImageReferencePath(*psV.VECVI, pzName.s)
   Declare   SetImageReferencePath(*psV.VECVI, pzName.s, pzPath.s)
   Declare   SetPageNumberingTokens(*psV.VECVI, pzCurrent.s = "", pzTotal.s = "")
+  Declare.i GetLastPageNumber(*psV.VECVI, piSection.i = 0)
   Declare.s GetVariable(*psV.VECVI, pzVariable.s)
   Declare   SetVariable(*psV.VECVI, pzVariable.s, pzValue.s)
   Declare   RemoveVariable(*psV.VECVI, pzVariable.s)
