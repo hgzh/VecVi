@@ -224,6 +224,12 @@ To determine the full amount of pages in a document including pages without numb
 The optional section parameter allows you to count only the pages inside the section width the specified index.
 If not set, the function will return the number of pages in the whole document.
 
+To get the last used page number of the whole document or a given section with the settings provided through the numbering options, use ```VecVi::GetLastPageNumber()```:
+
+> VecVi::GetLastPageNumber(*psV.VECVI, piSection.i = 0)
+
+Both *GetPageCount* and *GetLastPageNumber* only work within a processed document, so if you haven't processed it yet (for example by calling an output function), call ```VecVi::Process()``` to let VecVi compute the page division.
+
 # Images
 VecVi supports image transclusion inside documents using ```VecVi::ImageCell()```. This function requires the image you want to include in the document to be
 a PureBasic Image object. This allows maximum flexibility in how you create the image: by loading it from a file, downloading it or generating it on the fly.
