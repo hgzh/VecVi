@@ -87,3 +87,6 @@
 - added pzName parameter to ImageCell()
 - added GetImageReferencePath()/SetImageReferencePath()
 - changed internal image handling to load the same image only once
+
+**v.1.21 (2026-07-20)**
+- added GetLastPageNumber()
